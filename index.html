@@ -97,6 +97,11 @@
       <div class="panel-header">
         <h2 id="panel-projects-title">Proyek</h2>
       </div>
+      <!-- Mobile-only: + Proyek button (hidden on desktop) -->
+      <div class="mob-panel-actions" id="mob-projects-actions">
+        <button class="btn-sm primary" onclick="document.getElementById('btn-new-project').click()">+ Proyek Baru</button>
+        <button class="btn-sm" onclick="App.copyPublicLink()">🔗 Share Link</button>
+      </div>
       <div id="project-list"><p class="empty-msg">Memuat...</p></div>
     </div>
 
@@ -107,6 +112,12 @@
           <button id="btn-back" class="btn-sm">← Kembali</button>
           <button id="btn-add-layer" class="btn-sm primary" style="display:none">+ Layer</button>
         </div>
+      </div>
+      <!-- Mobile-only: Edit Proyek & Drone buttons (hidden on desktop) -->
+      <div class="mob-panel-actions" id="mob-layers-actions" style="display:none">
+        <button class="btn-sm" onclick="document.getElementById('btn-edit-project').click()">✏️ Edit Proyek</button>
+        <button class="btn-sm" onclick="document.getElementById('btn-add-drone').click()">🛸 Drone</button>
+        <button class="btn-sm" onclick="App.copyPublicLink()">🔗 Share</button>
       </div>
       <div class="tabs">
         <button class="tab-btn active" data-tab="layers">Layer</button>

@@ -871,6 +871,16 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text2); }
 
+/* ── Mobile-only panel action rows (hidden on desktop) ──── */
+.mob-panel-actions {
+  display: none;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
 /* ── Sidebar drag handle (mobile only, hidden on desktop) ─── */
 #sidebar-handle {
   display: none;
@@ -927,11 +937,13 @@ body {
 
   /* Header buttons: shrink & trim labels */
   .header-btn { padding: 4px 8px; font-size: 11px; }
-  /* Hide lower-priority header buttons on mobile — available in sidebar */
+  /* Hide header-only admin buttons on mobile — duplicated inside sidebar panels */
   #btn-edit-project,
   #btn-add-drone,
-  #btn-new-project,
-  #btn-add-layer { display: none !important; }
+  #btn-new-project { display: none !important; }
+
+  /* Show mobile-only action bars inside panels */
+  .mob-panel-actions { display: flex !important; }
 
   /* ── Layout: map full-width, sidebar as bottom sheet ── */
   #app { flex-direction: column; position: relative; }

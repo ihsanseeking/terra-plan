@@ -37,6 +37,12 @@ const UI = {
     document.getElementById('btn-new-project').style.display  = isAdmin ? '' : 'none';
     document.getElementById('btn-add-layer').style.display    = isAdmin ? '' : 'none';
     document.getElementById('drawing-toolbar').style.display  = (isAdmin && project) ? 'flex' : 'none';
+
+    // Mobile-only action bars visibility
+    const mobProjects = document.getElementById('mob-projects-actions');
+    const mobLayers   = document.getElementById('mob-layers-actions');
+    if (mobProjects) mobProjects.style.display = isAdmin ? '' : 'none';
+    if (mobLayers)   mobLayers.style.display   = (isAdmin && project) ? '' : 'none';
   },
 
   // ── Project list ──────────────────────────────────────────
