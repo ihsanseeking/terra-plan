@@ -38,6 +38,17 @@ const App = {
   _initLanding() {
     UI.showPanel('landing');
     UI.setHeader(null, false, null);
+    this._openMobileSidebar();
+  },
+
+  _openMobileSidebar() {
+    if (window.innerWidth <= 640) {
+      const sb  = document.getElementById('sidebar');
+      const fab = document.getElementById('fab-sidebar');
+      sb?.classList.add('mobile-open');
+      fab?.classList.add('open');
+      if (fab) fab.querySelector('#fab-icon').textContent = '✕';
+    }
   },
 
   // ── Public view ───────────────────────────────────────────
@@ -54,6 +65,7 @@ const App = {
       UI.setHeader(null, false, admin);
       await this.loadProjectList();
       UI.showPanel('projects');
+      this._openMobileSidebar();
       Tutorial.autoStart();
     } catch (e) {
       UI.toast('Gagal memuat workspace: ' + e.message, 'error');
@@ -71,6 +83,7 @@ const App = {
       UI.setHeader(null, true, session);
       await this.loadProjectList();
       UI.showPanel('projects');
+      this._openMobileSidebar();
       Tutorial.autoStart();
     } else {
       // Show login for this slug
@@ -78,6 +91,7 @@ const App = {
       document.getElementById('login-slug-label').textContent = slug;
       document.getElementById('login-username').value = '';
       document.getElementById('login-password').value = '';
+      this._openMobileSidebar();
       Tutorial.autoStart();
     }
   },
@@ -96,6 +110,7 @@ const App = {
       UI.setHeader(null, true, admin);
       await this.loadProjectList();
       UI.showPanel('projects');
+      this._openMobileSidebar();
       Tutorial.autoStart();
       UI.toast(`Selamat datang, ${admin.display_name || admin.username}!`, 'success');
     } catch (e) {
@@ -178,6 +193,7 @@ const App = {
       const admin = this.state.currentAdmin || this.state.viewAdmin;
       UI.setHeader(project, this.state.isAdmin, admin);
       UI.showPanel('layers');
+      this._closeMobileSidebar?.();
       Tutorial.autoStart();
     } catch (e) {
       UI.toast('Gagal membuka proyek: ' + e.message, 'error');
@@ -558,6 +574,7 @@ const App = {
     });
     document.getElementById('btn-goto-login').addEventListener('click', () => {
       UI.showPanel('admin-login');
+      this._openMobileSidebar();
       Tutorial.autoStart();
     });
     document.getElementById('btn-goto-register').addEventListener('click', () => {
@@ -607,6 +624,14 @@ const App = {
       UI.setHeader(null, this.state.isAdmin, admin);
       this.loadProjectList();
       UI.showPanel('projects');
+      // Auto-open sidebar on mobile so project list is visible
+      if (window.innerWidth <= 640) {
+        const sb  = document.getElementById('sidebar');
+        const fab = document.getElementById('fab-sidebar');
+        sb?.classList.add('mobile-open');
+        fab?.classList.add('open');
+        if (fab) fab.querySelector('#fab-icon').textContent = '✕';
+      }
     });
 
     // ── New/edit project ──
@@ -745,6 +770,32 @@ const App = {
     // ── Close modals ──
     document.querySelectorAll('.modal-close, .btn-modal-cancel').forEach(btn =>
       btn.addEventListener('click', () => UI.closeAllModals()));
+
+    // ── Mobile: FAB sidebar toggle ──
+    const fab     = document.getElementById('fab-sidebar');
+    const sidebar = document.getElementById('sidebar');
+    fab?.addEventListener('click', () => {
+      const isOpen = sidebar.classList.toggle('mobile-open');
+      fab.classList.toggle('open', isOpen);
+      fab.querySelector('#fab-icon').textContent = isOpen ? '✕' : '☰';
+    });
+    // Close sidebar when map tapped on mobile
+    MapManager.map.on('click', () => {
+      if (window.innerWidth <= 640 && sidebar.classList.contains('mobile-open')) {
+        sidebar.classList.remove('mobile-open');
+        fab.classList.remove('open');
+        fab.querySelector('#fab-icon').textContent = '☰';
+      }
+    });
+    // Auto-close sidebar when project opens on mobile (focus map)
+    const _origOpenProject = this.openProject.bind(this);
+    this._closeMobileSidebar = () => {
+      if (window.innerWidth <= 640) {
+        sidebar.classList.remove('mobile-open');
+        fab?.classList.remove('open');
+        if (fab) fab.querySelector('#fab-icon').textContent = '☰';
+      }
+    };
   },
 
   _clearRegisterForm() {
