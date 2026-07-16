@@ -91,6 +91,7 @@ const App = {
       const admin = await Auth.login(username, password);
       this.state.currentAdmin = admin;
       this.state.isAdmin = true;
+      this.state.mode = 'admin';
       Router.setURL('admin', admin.slug);
       UI.setHeader(null, true, admin);
       await this.loadProjectList();
@@ -114,6 +115,7 @@ const App = {
       });
       this.state.currentAdmin = admin;
       this.state.isAdmin = true;
+      this.state.mode = 'admin';
       UI.closeModal('modal-register');
       Router.setURL('admin', admin.slug);
       UI.setHeader(null, true, admin);
@@ -131,6 +133,7 @@ const App = {
     this.state.currentAdmin = null;
     this.state.isAdmin = false;
     this.state.currentProject = null;
+    this.state.mode = 'landing';
     Router.setURL(null, null);
     MapManager.clearAllLayers();
     this._initLanding();
