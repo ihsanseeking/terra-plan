@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TerraPlan — Platform Pemetaan Lahan</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+  <!-- App CSS -->
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<div id="header">
+  <div class="logo">🗺 TerraPlan</div>
+  <div id="project-title">Pilih Proyek</div>
+  <span id="mode-badge" class="mode-badge public">PUBLIK</span>
+
+  <!-- Basemap switcher -->
+  <div class="basemap-group">
+    <button class="basemap-btn active" data-basemap="osm">Peta</button>
+    <button class="basemap-btn" data-basemap="satellite">Satelit</button>
+    <button class="basemap-btn" data-basemap="hybrid">Hybrid</button>
+  </div>
+
+  <!-- Header actions -->
+  <button id="btn-edit-project" class="header-btn" style="display:none" title="Edit proyek">✏️ Edit</button>
+  <button id="btn-add-drone" class="header-btn" style="display:none" title="Tambah overlay drone">🛸 Drone</button>
+  <button id="btn-admin" class="header-btn" title="Masuk mode admin">🔑 Admin</button>
+  <button id="btn-logout" class="header-btn danger" style="display:none" title="Keluar admin">🚪 Keluar</button>
+</div>
+
+<!-- ── App Body ───────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+
+    <!-- Panel: Project list -->
+    <div id="panel-projects" class="panel active">
+      <div class="panel-header">
+        <h2>Proyek Lahan</h2>
+        <div class="panel-actions">
+          <button id="btn-new-project" class="btn-sm primary">+ Baru</button>
+          <button id="btn-global-admin" class="btn-sm">🔐 Admin</button>
+        </div>
+      </div>
+      <div id="project-list">
+        <p class="empty-msg">Memuat proyek...</p>
+      </div>
+    </div>
+
+    <!-- Panel: Layers + Features (when project is open) -->
+    <div id="panel-layers" class="panel">
+      <div class="panel-header">
+        <div class="panel-actions">
+          <button id="btn-back" class="btn-sm">← Kembali</button>
+          <button id="btn-add-layer" class="btn-sm primary" style="display:none">+ Layer</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="layers">Layer</button>
+        <button class="tab-btn" data-tab="features">Area/Jalur</button>
+      </div>
+
+      <div id="tab-layers" class="tab-content active">
+        <div id="layer-list"><p class="empty-msg">Belum ada layer.</p></div>
+      </div>
+
+      <div id="tab-features" class="tab-content">
+        <div id="feature-list"><p class="empty-msg">Belum ada area.</p></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Map container -->
+  <div id="map-container">
+    <div id="map"></div>
+
+    <!-- Drawing toolbar (admin only) -->
+    <div id="drawing-toolbar">
+      <span class="draw-label">Gambar:</span>
+      <button class="draw-btn" data-mode="polygon">⬡ Polygon</button>
+      <button class="draw-btn" data-mode="polyline">〰 Jalur</button>
+      <button class="draw-btn" data-mode="marker">📍 Titik</button>
+      <span style="margin-left:auto;font-size:11px;color:var(--text2)">Layer aktif akan menerima gambar baru</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Modals ─────────────────────────────────────────────── -->
+
+<!-- PIN Modal (per project) -->
+<div id="modal-pin" class="modal-overlay">
+  <div class="modal pin-modal" style="max-width:320px">
+    <button class="modal-close">✕</button>
+    <div class="pin-icon">🔐</div>
+    <div class="modal-title">Masuk Mode Admin</div>
+    <div class="form-group">
+      <label>PIN Proyek</label>
+      <input id="pin-input" type="password" placeholder="Masukkan PIN..." autocomplete="off" />
+    </div>
+    <div class="modal-footer" style="justify-content:center">
+      <button id="btn-pin-submit" class="btn-primary" style="width:100%">Masuk</button>
+    </div>
+  </div>
+</div>
+
+<!-- Global Admin PIN Modal -->
+<div id="modal-global-pin" class="modal-overlay">
+  <div class="modal pin-modal" style="max-width:320px">
+    <button class="modal-close">✕</button>
+    <div class="pin-icon">🌐</div>
+    <div class="modal-title">Admin Global</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;text-align:center">Akses semua proyek termasuk draft & arsip</p>
+    <div class="form-group">
+      <label>PIN Admin Global</label>
+      <input id="global-pin-input" type="password" placeholder="terraadmin" autocomplete="off" />
+    </div>
+    <div class="modal-footer" style="justify-content:center">
+      <button id="btn-global-pin-submit" class="btn-primary" style="width:100%">Masuk</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project Modal (create/edit) -->
+<div id="modal-project" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close">✕</button>
+    <div class="modal-title">📋 Proyek</div>
+    <input type="hidden" id="pm-id" />
+    <div class="form-group">
+      <label>Nama Proyek *</label>
+      <input id="pm-name" type="text" placeholder="Contoh: Kavling Hijau Selatan" />
+    </div>
+    <div class="form-group">
+      <label>Lokasi</label>
+      <input id="pm-location" type="text" placeholder="Contoh: Jakarta Selatan" />
+    </div>
+    <div class="form-group">
+      <label>Deskripsi</label>
+      <textarea id="pm-desc" placeholder="Deskripsi singkat proyek..."></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Status</label>
+        <select id="pm-status">
+          <option value="draft">Draft</option>
+          <option value="aktif">Aktif (Publik)</option>
+          <option value="arsip">Arsip</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>PIN Admin</label>
+        <input id="pm-pin" type="text" placeholder="1234" />
+      </div>
+    </div>
+    <div style="background:var(--bg3);border-radius:6px;padding:10px;margin-bottom:12px">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.4px">Posisi Awal Peta</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Lat</label>
+          <input id="pm-lat" type="number" step="any" placeholder="-6.2" />
+        </div>
+        <div class="form-group">
+          <label>Lng</label>
+          <input id="pm-lng" type="number" step="any" placeholder="106.8" />
+        </div>
+        <div class="form-group" style="max-width:80px">
+          <label>Zoom</label>
+          <input id="pm-zoom" type="number" min="5" max="22" placeholder="15" />
+        </div>
+      </div>
+      <button id="btn-capture-center" class="btn-sm" style="width:100%">📍 Ambil posisi peta saat ini</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary btn-modal-cancel">Batal</button>
+      <button id="btn-project-save" class="btn-primary">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Layer Modal -->
+<div id="modal-layer" class="modal-overlay">
+  <div class="modal" style="max-width:360px">
+    <button class="modal-close">✕</button>
+    <div class="modal-title">➕ Tambah Layer</div>
+    <div class="form-group">
+      <label>Nama Layer</label>
+      <input id="layer-name-input" type="text" placeholder="Contoh: Zona Perumahan" />
+    </div>
+    <div class="form-group">
+      <label>Warna Layer</label>
+      <input id="layer-color-input" type="color" value="#3388ff" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary btn-modal-cancel">Batal</button>
+      <button id="btn-layer-save" class="btn-primary">Tambah</button>
+    </div>
+  </div>
+</div>
+
+<!-- Feature Edit Modal -->
+<div id="modal-feature" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close">✕</button>
+    <div class="modal-title">✏️ Edit Fitur</div>
+    <input type="hidden" id="fm-id" />
+
+    <div id="fm-stats" class="form-stats"></div>
+
+    <div class="form-group">
+      <label>Nama Area / Jalur</label>
+      <input id="fm-name" type="text" placeholder="Contoh: Kavling A1" />
+    </div>
+    <div class="form-group">
+      <label>Label (tampil di peta)</label>
+      <input id="fm-label" type="text" placeholder="Teks label di peta..." />
+    </div>
+    <div class="form-group">
+      <label>Kategori / Zona</label>
+      <select id="fm-category"></select>
+    </div>
+    <div class="form-group">
+      <label>Layer</label>
+      <select id="fm-layer"></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Warna Garis</label>
+        <input id="fm-color" type="color" value="#3388ff" />
+      </div>
+      <div class="form-group">
+        <label>Warna Isi</label>
+        <input id="fm-fill" type="color" value="#3388ff" />
+      </div>
+      <div class="form-group">
+        <label>Opasitas</label>
+        <input id="fm-opacity" type="range" min="0" max="1" step="0.05" value="0.5" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="btn-feature-delete" class="btn-danger">Hapus</button>
+      <button class="btn-secondary btn-modal-cancel">Batal</button>
+      <button id="btn-feature-save" class="btn-primary">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Drone Overlay Modal -->
+<div id="modal-drone" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close">✕</button>
+    <div class="modal-title">🛸 Overlay Foto Drone</div>
+    <div class="form-group">
+      <label>Nama</label>
+      <input id="drone-name" type="text" placeholder="Foto udara area barat" />
+    </div>
+    <div class="form-group">
+      <label>URL Gambar (HTTPS)</label>
+      <input id="drone-url" type="url" placeholder="https://..." />
+    </div>
+    <div style="background:var(--bg3);border-radius:6px;padding:10px;margin-bottom:12px">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.4px">Batas Koordinat (otomatis dari tampilan peta)</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>North (Lat Max)</label>
+          <input id="drone-north" type="number" step="any" />
+        </div>
+        <div class="form-group">
+          <label>South (Lat Min)</label>
+          <input id="drone-south" type="number" step="any" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>East (Lng Max)</label>
+          <input id="drone-east" type="number" step="any" />
+        </div>
+        <div class="form-group">
+          <label>West (Lng Min)</label>
+          <input id="drone-west" type="number" step="any" />
+        </div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Opasitas: <span id="drone-opacity-val">0.8</span></label>
+      <input id="drone-opacity" type="range" min="0.1" max="1" step="0.05" value="0.8"
+        oninput="document.getElementById('drone-opacity-val').textContent=this.value" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary btn-modal-cancel">Batal</button>
+      <button id="btn-drone-save" class="btn-primary">Tambah Overlay</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- ── Scripts ────────────────────────────────────────────── -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+<script src="js/config.js"></script>
+<script src="js/db.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/map.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
