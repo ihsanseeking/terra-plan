@@ -54,6 +54,7 @@ const App = {
       UI.setHeader(null, false, admin);
       await this.loadProjectList();
       UI.showPanel('projects');
+      Tutorial.autoStart();
     } catch (e) {
       UI.toast('Gagal memuat workspace: ' + e.message, 'error');
       this._initLanding();
@@ -70,12 +71,14 @@ const App = {
       UI.setHeader(null, true, session);
       await this.loadProjectList();
       UI.showPanel('projects');
+      Tutorial.autoStart();
     } else {
       // Show login for this slug
       UI.showPanel('admin-login');
       document.getElementById('login-slug-label').textContent = slug;
       document.getElementById('login-username').value = '';
       document.getElementById('login-password').value = '';
+      Tutorial.autoStart();
     }
   },
 
@@ -92,6 +95,7 @@ const App = {
       UI.setHeader(null, true, admin);
       await this.loadProjectList();
       UI.showPanel('projects');
+      Tutorial.autoStart();
       UI.toast(`Selamat datang, ${admin.display_name || admin.username}!`, 'success');
     } catch (e) {
       UI.toast(e.message, 'error');
@@ -115,6 +119,7 @@ const App = {
       UI.setHeader(null, true, admin);
       await this.loadProjectList();
       UI.showPanel('projects');
+      Tutorial.autoStart();
       UI.toast(`Akun berhasil dibuat! Selamat datang, ${admin.display_name || admin.username}`, 'success');
     } catch (e) {
       UI.toast(e.message, 'error');
@@ -170,6 +175,7 @@ const App = {
       const admin = this.state.currentAdmin || this.state.viewAdmin;
       UI.setHeader(project, this.state.isAdmin, admin);
       UI.showPanel('layers');
+      Tutorial.autoStart();
     } catch (e) {
       UI.toast('Gagal membuka proyek: ' + e.message, 'error');
     }
@@ -517,7 +523,10 @@ const App = {
     document.getElementById('view-slug-input').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('btn-view-go').click();
     });
-    document.getElementById('btn-goto-login').addEventListener('click', () => UI.showPanel('admin-login'));
+    document.getElementById('btn-goto-login').addEventListener('click', () => {
+      UI.showPanel('admin-login');
+      Tutorial.autoStart();
+    });
     document.getElementById('btn-goto-register').addEventListener('click', () => {
       this._clearRegisterForm();
       UI.openModal('modal-register');

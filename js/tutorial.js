@@ -1,196 +1,306 @@
-// TerraPlan — Interactive guided tour with live demo simulation
+// TerraPlan — Context-aware guided tour
+// Detects current panel/state and shows relevant steps only.
 const Tutorial = {
   _step: 0,
+  _steps: [],
   _overlay: null,
-  _demoLayers: [],   // temp Leaflet layers for simulation
-  _simRunning: false,
+  _demoLayers: [],
+  _currentContext: null,
 
-  // Demo GeoJSON (around Jakarta Selatan - Cilandak area)
-  DEMO_DATA: {
-    kavlingA: {
-      type: 'Feature',
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[
-          [106.7998, -6.2891], [106.8018, -6.2891],
-          [106.8018, -6.2907], [106.7998, -6.2907],
-          [106.7998, -6.2891],
-        ]],
-      },
-      properties: { name: 'Kavling A1', area: '1.847 m² (0,1847 ha)', category: 'Perumahan' },
-    },
-    kavlingB: {
-      type: 'Feature',
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[
-          [106.8020, -6.2891], [106.8038, -6.2891],
-          [106.8038, -6.2905], [106.8020, -6.2905],
-          [106.8020, -6.2891],
-        ]],
-      },
-      properties: { name: 'Kavling B1', area: '1.440 m² (0,1440 ha)', category: 'Perumahan' },
-    },
-    fasumBlock: {
-      type: 'Feature',
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[
-          [106.7998, -6.2910], [106.8038, -6.2910],
-          [106.8038, -6.2922], [106.7998, -6.2922],
-          [106.7998, -6.2910],
-        ]],
-      },
-      properties: { name: 'Area Fasilitas Umum', area: '3.200 m² (0,32 ha)', category: 'Fasilitas Umum' },
-    },
-    jalanUtama: {
-      type: 'Feature',
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.7993, -6.2899], [106.8042, -6.2899],
-        ],
-      },
-      properties: { name: 'Jalan Akses Utama', length: '327 m', category: 'Jalan/Akses' },
-    },
-    jalanSub: {
-      type: 'Feature',
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.8008, -6.2891], [106.8008, -6.2924],
-        ],
-      },
-      properties: { name: 'Jalan Sub-blok', length: '183 m', category: 'Jalan/Akses' },
-    },
-    gerbang: {
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [106.7993, -6.2899] },
-      properties: { name: 'Gerbang Utama', category: 'Titik Penting' },
-    },
-    taman: {
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [106.8018, -6.2916] },
-      properties: { name: 'Pos Keamanan', category: 'Titik Penting' },
-    },
+  // ── Context detection ─────────────────────────────────────
+  _detectContext() {
+    const activePanel = document.querySelector('.panel.active')?.id;
+    const mode       = App?.state?.mode;
+    const hasProject = !!App?.state?.currentProject;
+
+    if (activePanel === 'panel-landing')     return 'landing';
+    if (activePanel === 'panel-admin-login') return 'admin-login';
+    if (mode === 'public'  && !hasProject)   return 'public-projects';
+    if (mode === 'public'  &&  hasProject)   return 'public-map';
+    if (mode === 'admin'   && !hasProject)   return 'admin-projects';
+    if (mode === 'admin'   &&  hasProject)   return 'admin-map';
+    return 'landing';
   },
 
-  STEPS: [
-    {
-      id: 'welcome',
-      title: '👋 Selamat datang di TerraPlan!',
-      text: 'Platform pemetaan lahan digital untuk mengelola dan mempresentasikan proyek lahan kepada investor.<br><br>Tutorial ini akan memandu kamu dengan <b>simulasi langsung</b> di peta. Klik <b>Berikutnya</b> untuk mulai.',
-      target: null, position: 'center',
-    },
-    {
-      id: 'workspace',
-      title: '🏠 Sistem Workspace',
-      text: 'Setiap admin punya <b>workspace sendiri</b> dengan URL unik.<br><br>Contoh:<br>• Admin: <code>app.com?admin=budi</code><br>• Publik: <code>app.com?view=budi</code><br><br>Data tiap admin <b>terpisah sepenuhnya</b> — tidak bisa diakses admin lain.',
-      target: '#panel-landing', position: 'right',
-    },
-    {
-      id: 'landing',
-      title: '🚪 Landing Page',
-      text: 'Halaman ini tampil ketika URL dibuka tanpa parameter.<br><br>• <b>Lihat Peta Publik</b> → masukkan kode workspace untuk melihat peta investor<br>• <b>Login Admin</b> → kelola proyek dan gambar peta<br>• <b>Buat Akun</b> → daftar sebagai admin baru',
-      target: '.landing-cards', position: 'right',
-    },
-    {
-      id: 'share',
-      title: '🔗 Bagikan Link Publik',
-      text: 'Setelah login admin, klik tombol <b>🔗 Share</b> di header untuk menyalin link publik.<br><br>Link ini bisa dibagikan ke investor atau klien — mereka hanya bisa <b>melihat</b>, tidak bisa mengedit.',
-      target: '#btn-share', position: 'bottom',
-    },
-    {
-      id: 'projects',
-      title: '📋 Daftar Proyek',
-      text: 'Semua proyek lahan ditampilkan di sini.<br><br>• Status <b>Aktif</b> → terlihat oleh publik<br>• Status <b>Draft</b> → hanya terlihat admin<br>• Status <b>Arsip</b> → proyek selesai/tidak aktif<br><br>Klik kartu proyek untuk membuka petanya.',
-      target: '#project-list', position: 'right',
-    },
-    {
-      id: 'map-demo',
-      title: '🗺 Peta Interaktif + Demo Langsung',
-      text: 'Berikut contoh proyek lahan nyata di peta.<br><br>Perhatikan area yang muncul — ini menunjukkan <b>kavling, jalan akses, dan fasilitas umum</b> yang sudah dipetakan.',
-      target: '#map', position: 'center',
-      onEnter: 'showDemoFeatures',
-    },
-    {
-      id: 'polygon-demo',
-      title: '⬡ Polygon — Kavling & Zona',
-      text: 'Dua <b>polygon kuning & merah</b> di peta adalah kavling perumahan.<br><br>Klik salah satunya untuk lihat:<br>• Nama area<br>• Kategori zona<br>• <b>Luas otomatis</b> (m² dan hektar)',
-      target: '#map', position: 'right',
-    },
-    {
-      id: 'polyline-demo',
-      title: '〰 Jalur — Jalan & Akses',
-      text: 'Garis <b>abu-abu</b> di peta adalah jalan akses utama dan sub-blok.<br><br>Panjang jalur dihitung otomatis dalam meter.<br><br>Fungsi ini berguna untuk menghitung kebutuhan pengaspalan, saluran drainase, dll.',
-      target: '#map', position: 'right',
-    },
-    {
-      id: 'marker-demo',
-      title: '📍 Marker — Titik Penting',
-      text: 'Titik <b>biru</b> menandai lokasi penting seperti gerbang masuk dan pos keamanan.<br><br>Marker bisa diberi nama, label, dan dikategorikan sesuai kebutuhan.',
-      target: '#map', position: 'right',
-    },
-    {
-      id: 'basemap',
-      title: '🛰 Ganti Basemap',
-      text: 'Pilih tampilan peta dasar sesuai kebutuhan:<br><br>• <b>Peta</b> — OpenStreetMap dengan nama jalan<br>• <b>Satelit</b> — foto udara resolusi tinggi<br>• <b>Hybrid</b> — satelit + label jalan<br><br>Mode satelit sangat berguna untuk melihat kondisi lahan sebenarnya.',
-      target: '.basemap-group', position: 'bottom',
-    },
-    {
-      id: 'drawing',
-      title: '✏️ Toolbar Gambar (Mode Admin)',
-      text: 'Setelah login admin, toolbar ini muncul di bawah peta:<br><br>• <b>⬡ Polygon</b> → klik sudut-sudut area, double-klik selesai<br>• <b>〰 Jalur</b> → klik titik jalur, double-klik selesai<br>• <b>📍 Titik</b> → klik lokasi untuk pasang marker<br><br>Setelah selesai, form edit terbuka otomatis.',
-      target: '#drawing-toolbar', position: 'top',
-    },
-    {
-      id: 'layers',
-      title: '🗂 Manajemen Layer',
-      text: 'Layer mengelompokkan area berdasarkan kategori:<br><br>• Klik <b>👁</b> untuk tampilkan/sembunyikan layer<br>• Klik <b>✏️</b> untuk set layer aktif (gambar baru masuk ke sini)<br>• Setiap layer punya warna sendiri yang diterapkan ke semua fiturnya',
-      target: '#tab-layers', position: 'right',
-    },
-    {
-      id: 'feature-edit',
-      title: '✏️ Edit Fitur',
-      text: 'Klik area/jalur/titik di peta untuk membuka panel edit:<br><br>• <b>Nama</b> — identifikasi area (misal: Kavling A1)<br>• <b>Label</b> — teks yang tampil langsung di peta<br>• <b>Zona</b> — Perumahan, Komersial, RTH, dll.<br>• <b>Warna & opasitas</b> — tampilan visual',
-      target: '#feature-list', position: 'right',
-    },
-    {
-      id: 'drone',
-      title: '🛸 Overlay Foto Drone',
-      text: 'Tempel <b>foto udara/drone</b> tepat di atas peta dengan koordinat yang akurat.<br><br>Sangat berguna untuk:<br>• Menampilkan kondisi lahan terkini ke investor<br>• Membandingkan batas kavling dengan kondisi nyata<br>• Presentasi masterplan visual',
-      target: '#btn-add-drone', position: 'bottom',
-    },
-    {
-      id: 'public-mode',
-      title: '👁 Mode Publik untuk Investor',
-      text: 'Bagikan link <code>?view=workspace</code> ke investor.<br><br>Mereka hanya bisa <b>melihat dan klik fitur</b> untuk lihat detail — tidak ada tombol edit, hapus, atau gambar.<br><br>Tampilan bersih dan profesional untuk presentasi.',
-      target: '#mode-badge', position: 'bottom',
-    },
-    {
-      id: 'finish',
-      title: '🎉 Siap digunakan!',
-      text: 'TerraPlan siap untuk dipresentasikan ke investor.<br><br>📌 <b>Ringkasan alur kerja:</b><br>1. Daftar akun admin<br>2. Buat proyek & layer<br>3. Gambar polygon/jalur/marker<br>4. Bagikan link <code>?view=slug</code> ke investor<br><br>Klik <b>?</b> kapan saja untuk membuka panduan ini.',
-      target: null, position: 'center',
-      onLeave: 'clearDemoFeatures',
-    },
-  ],
+  // ── Step definitions per context ──────────────────────────
+  CONTEXTS: {
 
-  // ── Start ─────────────────────────────────────────────────
+    // ── 1. Landing page ──────────────────────────────────────
+    landing: [
+      {
+        title: '👋 Selamat datang di TerraPlan!',
+        text: 'Platform pemetaan lahan digital untuk mengelola & mempresentasikan proyek ke investor.<br><br>Ikuti panduan singkat ini untuk mulai.',
+        target: null, position: 'center',
+      },
+      {
+        title: '👁 Lihat Peta Publik',
+        text: 'Masukkan <b>kode workspace</b> milik admin lahan, lalu klik <b>→</b><br><br>Kamu akan melihat semua proyek aktif milik admin tersebut dalam mode view-only.',
+        target: '.landing-card:first-child', position: 'right',
+      },
+      {
+        title: '🔑 Login Admin',
+        text: 'Punya akun admin? Klik <b>Login</b> untuk masuk ke workspace-mu dan mengelola proyek lahan.',
+        target: '#btn-goto-login', position: 'right',
+      },
+      {
+        title: '🆕 Buat Akun Admin',
+        text: 'Belum punya akun? Klik <b>Daftar</b> dan isi form pendaftaran.<br><br>Kamu butuh <b>Platform Key</b> dari pengelola platform untuk mendaftar.',
+        target: '#btn-goto-register', position: 'right',
+      },
+      {
+        title: '🔑 Platform Key',
+        text: 'Platform Key adalah kode khusus yang membatasi siapa saja yang bisa jadi admin.<br><br>Hubungi pengelola platform untuk mendapatkan kode ini sebelum mendaftar.',
+        target: '.landing-card:last-child', position: 'right',
+      },
+    ],
+
+    // ── 2. Admin login panel ──────────────────────────────────
+    'admin-login': [
+      {
+        title: '🔑 Login Admin',
+        text: 'Masukkan <b>username</b> dan <b>password</b> akun admin kamu, lalu klik <b>Masuk</b>.',
+        target: '#panel-admin-login', position: 'right',
+      },
+      {
+        title: '💡 Belum punya akun?',
+        text: 'Klik <b>"Daftar di sini"</b> di bawah tombol login untuk membuat akun admin baru.<br><br>Siapkan Platform Key dari pengelola platform.',
+        target: '#btn-login-register', position: 'right',
+      },
+      {
+        title: '← Kembali ke Landing',
+        text: 'Klik <b>← Kembali</b> untuk ke halaman utama jika ingin melihat peta publik workspace lain.',
+        target: '#btn-login-back', position: 'right',
+      },
+    ],
+
+    // ── 3. Public — daftar proyek ─────────────────────────────
+    'public-projects': [
+      {
+        title: '🗺 Workspace Publik',
+        text: 'Kamu sedang melihat proyek lahan milik <b id="tut-admin-name">admin ini</b>.<br><br>Mode ini <b>view-only</b> — kamu bisa lihat semua proyek aktif tapi tidak bisa mengedit.',
+        target: '#project-list', position: 'right',
+        onEnter: 'fillAdminName',
+      },
+      {
+        title: '📋 Kartu Proyek',
+        text: 'Setiap kartu menampilkan nama, lokasi, dan deskripsi proyek.<br><br>Klik kartu untuk membuka peta lengkap proyek tersebut.',
+        target: '#project-list', position: 'right',
+      },
+      {
+        title: '🗺 Basemap',
+        text: 'Gunakan tombol di header untuk mengganti tampilan peta:<br>• <b>Peta</b> — OpenStreetMap<br>• <b>Satelit</b> — foto udara<br>• <b>Hybrid</b> — satelit + label',
+        target: '.basemap-group', position: 'bottom',
+      },
+    ],
+
+    // ── 4. Public — peta proyek ───────────────────────────────
+    'public-map': [
+      {
+        title: '🗺 Peta Proyek',
+        text: 'Ini peta lahan yang sudah dipetakan oleh admin.<br><br>Berikut simulasi fitur-fitur yang biasanya ada di peta lahan.',
+        target: '#map', position: 'center',
+        onEnter: 'showDemoFeatures',
+      },
+      {
+        title: '⬡ Area & Kavling',
+        text: 'Polygon berwarna menunjukkan area/kavling.<br><br><b>Klik polygon</b> untuk melihat:<br>• Nama area<br>• Kategori zona<br>• Luas dalam m² dan hektar',
+        target: '#map', position: 'right',
+      },
+      {
+        title: '〰 Jalur & Jalan',
+        text: 'Garis menunjukkan jalur jalan, akses, atau batas area.<br><br>Klik garis untuk lihat <b>panjang jalur</b> dalam meter.',
+        target: '#map', position: 'right',
+      },
+      {
+        title: '📍 Titik Penting',
+        text: 'Marker menandai titik penting seperti gerbang, pos keamanan, atau fasilitas.<br><br>Klik marker untuk lihat informasi lengkapnya.',
+        target: '#map', position: 'right',
+      },
+      {
+        title: '🗂 Layer',
+        text: 'Klik 👁 di samping nama layer untuk <b>sembunyikan atau tampilkan</b> kelompok area tertentu.',
+        target: '#tab-layers', position: 'right',
+      },
+      {
+        title: '🛰 Ganti Basemap',
+        text: 'Gunakan tombol ini untuk mengganti tampilan peta dasar.<br><br>Mode <b>Satelit</b> sangat berguna untuk melihat kondisi lahan nyata.',
+        target: '.basemap-group', position: 'bottom',
+        onLeave: 'clearDemoFeatures',
+      },
+    ],
+
+    // ── 5. Admin — daftar proyek ──────────────────────────────
+    'admin-projects': [
+      {
+        title: '🏠 Workspace Admin Kamu',
+        text: 'Ini halaman utama workspace-mu sebagai admin.<br><br>Dari sini kamu bisa membuat, mengelola, dan membagikan proyek pemetaan lahan.',
+        target: '#project-list', position: 'right',
+      },
+      {
+        title: '📋 Status Proyek',
+        text: 'Setiap proyek punya status:<br><br>• <span style="color:#2ecc71">■</span> <b>Aktif</b> — terlihat oleh publik<br>• <span style="color:#f39c12">■</span> <b>Draft</b> — hanya kamu yang bisa lihat<br>• <span style="color:#aaa">■</span> <b>Arsip</b> — proyek tidak aktif',
+        target: '#project-list', position: 'right',
+      },
+      {
+        title: '➕ Buat Proyek Baru',
+        text: 'Klik <b>+ Proyek</b> untuk membuat proyek lahan baru.<br><br>Isi nama, lokasi, deskripsi, status, dan atur posisi awal peta.',
+        target: '#btn-new-project', position: 'bottom',
+      },
+      {
+        title: '🔗 Bagikan ke Investor',
+        text: 'Klik <b>🔗 Share</b> untuk menyalin link publik workspace-mu.<br><br>Link ini bisa langsung dibagikan ke investor — mereka hanya bisa melihat, tidak bisa mengedit.',
+        target: '#btn-share', position: 'bottom',
+      },
+      {
+        title: '🗺 Buka Proyek',
+        text: 'Klik salah satu kartu proyek untuk membuka petanya dan mulai memetakan lahan.',
+        target: '#project-list', position: 'right',
+      },
+    ],
+
+    // ── 6. Admin — peta proyek ────────────────────────────────
+    'admin-map': [
+      {
+        title: '🗺 Peta Proyek (Mode Admin)',
+        text: 'Kamu sekarang dalam mode admin untuk proyek ini.<br><br>Kamu bisa menggambar, mengedit, dan mengelola semua data peta.',
+        target: '#map', position: 'center',
+        onEnter: 'showDemoFeatures',
+      },
+      {
+        title: '⬡ Gambar Polygon',
+        text: 'Klik <b>⬡ Polygon</b> di toolbar bawah, lalu klik titik-titik di peta untuk membuat area/kavling.<br><br><b>Double-klik</b> untuk selesai.<br>Luas dihitung otomatis dalam m² dan hektar.',
+        target: '#drawing-toolbar', position: 'top',
+      },
+      {
+        title: '〰 Gambar Jalur',
+        text: 'Klik <b>〰 Jalur</b>, lalu klik titik-titik membentuk jalur/jalan.<br><br><b>Double-klik</b> untuk selesai.<br>Panjang jalur dihitung otomatis dalam meter.',
+        target: '#drawing-toolbar', position: 'top',
+      },
+      {
+        title: '📍 Pasang Marker',
+        text: 'Klik <b>📍 Titik</b>, lalu klik satu titik di peta untuk memasang marker.<br><br>Berguna untuk menandai gerbang, pos keamanan, akses masuk, dll.',
+        target: '#drawing-toolbar', position: 'top',
+      },
+      {
+        title: '✏️ Edit Properti Fitur',
+        text: 'Klik area/jalur/marker di peta atau di daftar ini untuk membuka panel edit.<br><br>Kamu bisa ubah <b>nama, label, zona, warna,</b> dan <b>layer</b>-nya.',
+        target: '#tab-features', position: 'right',
+      },
+      {
+        title: '✏️ Edit Bentuk Fitur',
+        text: 'Di panel edit fitur, klik <b>"✏️ Edit Bentuk"</b> untuk mengubah bentuk secara langsung di peta.<br><br>• Polygon/Jalur → drag titik sudut<br>• Marker → geser ke posisi baru<br><br>Luas/panjang dihitung ulang otomatis setelah disimpan.',
+        target: '#tab-features', position: 'right',
+      },
+      {
+        title: '🗂 Manajemen Layer',
+        text: 'Layer mengelompokkan fitur berdasarkan kategori.<br><br>• Klik <b>+ Layer</b> untuk tambah layer baru<br>• Klik <b>👁</b> untuk tampilkan/sembunyikan<br>• Klik <b>✏️</b> untuk set layer aktif — fitur baru masuk ke sini',
+        target: '#tab-layers', position: 'right',
+      },
+      {
+        title: '🛸 Overlay Foto Drone',
+        text: 'Klik <b>🛸 Drone</b> di header untuk menempel foto udara tepat di atas peta.<br><br>Masukkan URL gambar dan koordinat batasnya — foto muncul persis di lokasi yang sesuai.',
+        target: '#btn-add-drone', position: 'bottom',
+      },
+      {
+        title: '🔗 Share ke Investor',
+        text: 'Proyek sudah siap? Set status ke <b>Aktif</b> lalu klik <b>🔗 Share</b> untuk menyalin link publik.<br><br>Investor hanya bisa melihat, tidak bisa mengedit.',
+        target: '#btn-share', position: 'bottom',
+        onLeave: 'clearDemoFeatures',
+      },
+    ],
+  },
+
+  // ── Demo data (Jakarta Selatan) ───────────────────────────
+  DEMO_GEO: {
+    kavlingA: { type:'Feature', geometry:{ type:'Polygon', coordinates:[[[106.7998,-6.2891],[106.8018,-6.2891],[106.8018,-6.2907],[106.7998,-6.2907],[106.7998,-6.2891]]] }, properties:{ name:'Kavling A1', area:'1.847 m² (0,1847 ha)', cat:'Perumahan', color:'#e74c3c' } },
+    kavlingB: { type:'Feature', geometry:{ type:'Polygon', coordinates:[[[106.8020,-6.2891],[106.8038,-6.2891],[106.8038,-6.2905],[106.8020,-6.2905],[106.8020,-6.2891]]] }, properties:{ name:'Kavling B1', area:'1.440 m² (0,1440 ha)', cat:'Perumahan', color:'#e67e22' } },
+    fasum:    { type:'Feature', geometry:{ type:'Polygon', coordinates:[[[106.7998,-6.2910],[106.8038,-6.2910],[106.8038,-6.2922],[106.7998,-6.2922],[106.7998,-6.2910]]] }, properties:{ name:'Area Fasilitas Umum', area:'3.200 m² (0,32 ha)', cat:'Fasilitas Umum', color:'#27ae60' } },
+    jalan:    { type:'Feature', geometry:{ type:'LineString', coordinates:[[106.7993,-6.2899],[106.8042,-6.2899]] }, properties:{ name:'Jalan Akses Utama', length:'327 m', cat:'Jalan/Akses', color:'#7f8c8d' } },
+    jalanSub: { type:'Feature', geometry:{ type:'LineString', coordinates:[[106.8008,-6.2891],[106.8008,-6.2924]] }, properties:{ name:'Jalan Sub-blok', length:'183 m', cat:'Jalan/Akses', color:'#95a5a6' } },
+    gerbang:  { coords:[-6.2899, 106.7993], name:'Gerbang Utama', color:'#3498db' },
+    pos:      { coords:[-6.2916, 106.8018], name:'Pos Keamanan',  color:'#9b59b6' },
+  },
+
+  // ── Public API ────────────────────────────────────────────
   start() {
+    this._currentContext = this._detectContext();
+    this._steps = this.CONTEXTS[this._currentContext] || [];
+    if (!this._steps.length) return;
     this._step = 0;
     this._buildDOM();
     this._show();
-    localStorage.setItem('tp_tutorial_seen', '1');
+    localStorage.setItem(`tp_tut_${this._currentContext}`, '1');
   },
 
   autoStart() {
-    if (!localStorage.getItem('tp_tutorial_seen')) {
-      setTimeout(() => this.start(), 900);
+    const ctx = this._detectContext();
+    if (!localStorage.getItem(`tp_tut_${ctx}`)) {
+      setTimeout(() => this.start(), 800);
     }
   },
 
-  // ── DOM ──────────────────────────────────────────────────
+  // Reset a single context so it auto-shows again
+  resetContext(ctx) { localStorage.removeItem(`tp_tut_${ctx}`); },
+  resetAll() {
+    Object.keys(this.CONTEXTS).forEach(k => localStorage.removeItem(`tp_tut_${k}`));
+  },
+
+  // ── Step callbacks ────────────────────────────────────────
+  fillAdminName() {
+    const admin = App?.state?.viewAdmin;
+    const el = document.getElementById('tut-admin-name');
+    if (el && admin) el.textContent = admin.display_name || admin.username;
+  },
+
+  showDemoFeatures() {
+    if (!MapManager.map || this._demoLayers.length) return;
+    MapManager.map.setView([-6.2907, 106.8018], 16);
+
+    const add = (fn, delay) => setTimeout(() => {
+      if (!this._overlay) return;
+      const l = fn(); if (l) this._demoLayers.push(l);
+    }, delay);
+
+    const geo = this.DEMO_GEO;
+
+    // Polygons
+    [
+      [geo.kavlingA, 300], [geo.kavlingB, 700], [geo.fasum, 1100],
+    ].forEach(([d, delay]) => {
+      add(() => L.geoJSON(d, {
+        style: { color: d.properties.color, fillColor: d.properties.color, weight:2, fillOpacity:0.4 },
+      }).bindPopup(`<div class="popup-content"><strong>${d.properties.name}</strong><br><span class="popup-cat">${d.properties.cat}</span><br>Luas: <b>${d.properties.area}</b></div>`).addTo(MapManager.map), delay);
+    });
+
+    // Polylines
+    [
+      [geo.jalan, 1500], [geo.jalanSub, 1800],
+    ].forEach(([d, delay]) => {
+      add(() => L.geoJSON(d, {
+        style: { color: d.properties.color, weight:4, opacity:0.9 },
+      }).bindPopup(`<div class="popup-content"><strong>${d.properties.name}</strong><br><span class="popup-cat">${d.properties.cat}</span><br>Panjang: <b>${d.properties.length}</b></div>`).addTo(MapManager.map), delay);
+    });
+
+    // Markers
+    [
+      [geo.gerbang, 2100], [geo.pos, 2400],
+    ].forEach(([d, delay]) => {
+      add(() => {
+        const icon = L.divIcon({ className:'', html:`<div style="background:${d.color};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`, iconSize:[14,14], iconAnchor:[7,7] });
+        return L.marker(d.coords, { icon }).bindPopup(`<div class="popup-content"><strong>${d.name}</strong><br><span class="popup-cat">📍 Marker</span></div>`).addTo(MapManager.map);
+      }, delay);
+    });
+
+    // Open popup of first polygon after all loaded
+    add(() => { this._demoLayers[0]?.openPopup(); return null; }, 3000);
+  },
+
+  clearDemoFeatures() {
+    this._demoLayers.forEach(l => { try { MapManager.map?.removeLayer(l); } catch {} });
+    this._demoLayers = [];
+  },
+
+  // ── DOM ───────────────────────────────────────────────────
   _buildDOM() {
     document.getElementById('tutorial-overlay')?.remove();
     const el = document.createElement('div');
@@ -198,11 +308,14 @@ const Tutorial = {
     el.innerHTML = `
       <div id="tut-spotlight"></div>
       <div id="tut-box">
-        <div id="tut-progress"></div>
+        <div id="tut-header">
+          <div id="tut-context-badge"></div>
+          <div id="tut-progress"></div>
+        </div>
         <div id="tut-title"></div>
         <div id="tut-text"></div>
         <div id="tut-footer">
-          <button id="tut-skip">Lewati tutorial</button>
+          <button id="tut-skip">Lewati</button>
           <div id="tut-nav">
             <button id="tut-prev">← Sebelumnya</button>
             <button id="tut-next">Berikutnya →</button>
@@ -210,45 +323,56 @@ const Tutorial = {
         </div>
       </div>`;
     document.body.appendChild(el);
-
     this._overlay = el;
-    el.querySelector('#tut-next').addEventListener('click',  () => this._next());
-    el.querySelector('#tut-prev').addEventListener('click',  () => this._prev());
-    el.querySelector('#tut-skip').addEventListener('click',  () => this.stop());
+
+    el.querySelector('#tut-next').addEventListener('click', () => this._next());
+    el.querySelector('#tut-prev').addEventListener('click', () => this._prev());
+    el.querySelector('#tut-skip').addEventListener('click', () => this.stop());
+  },
+
+  _contextLabel: {
+    'landing':          '🏠 Halaman Utama',
+    'admin-login':      '🔑 Login Admin',
+    'public-projects':  '👁 Peta Publik',
+    'public-map':       '🗺 Lihat Peta',
+    'admin-projects':   '⚙️ Dashboard Admin',
+    'admin-map':        '✏️ Edit Peta',
   },
 
   _show() {
-    const step  = this.STEPS[this._step];
-    const total = this.STEPS.length;
+    const step  = this._steps[this._step];
+    const total = this._steps.length;
+
+    // Context badge
+    this._overlay.querySelector('#tut-context-badge').textContent =
+      this._contextLabel[this._currentContext] || '';
 
     // Progress dots
     this._overlay.querySelector('#tut-progress').innerHTML =
-      this.STEPS.map((_, i) =>
+      this._steps.map((_, i) =>
         `<span class="tut-dot ${i === this._step ? 'active' : i < this._step ? 'done' : ''}"></span>`
       ).join('');
 
-    this._overlay.querySelector('#tut-title').textContent   = step.title;
-    this._overlay.querySelector('#tut-text').innerHTML      = step.text;
+    this._overlay.querySelector('#tut-title').textContent = step.title;
+    this._overlay.querySelector('#tut-text').innerHTML    = step.text;
 
-    const next = this._overlay.querySelector('#tut-next');
     const prev = this._overlay.querySelector('#tut-prev');
-    prev.style.visibility    = this._step === 0 ? 'hidden' : '';
-    next.textContent         = this._step === total - 1 ? '✓ Selesai' : 'Berikutnya →';
+    const next = this._overlay.querySelector('#tut-next');
+    prev.style.visibility = this._step === 0 ? 'hidden' : '';
+    next.textContent      = this._step === total - 1 ? '✓ Selesai' : 'Berikutnya →';
     this._overlay.querySelector('#tut-skip').textContent =
-      this._step === total - 1 ? '' : 'Lewati tutorial';
+      this._step === total - 1 ? '' : 'Lewati';
 
     this._positionBox(step);
     this._overlay.style.display = 'block';
 
-    // Trigger simulation
     if (step.onEnter) this[step.onEnter]?.();
   },
 
   _next() {
-    // Run onLeave of final step
-    if (this._step === this.STEPS.length - 1) { this.stop(); return; }
-    const cur = this.STEPS[this._step];
-    if (cur.onLeave) this[cur.onLeave]?.();
+    const cur = this._steps[this._step];
+    if (cur?.onLeave) this[cur.onLeave]?.();
+    if (this._step >= this._steps.length - 1) { this.stop(); return; }
     this._step++;
     this._show();
   },
@@ -272,25 +396,25 @@ const Tutorial = {
 
     if (!step.target) {
       spotlight.style.display = 'none';
-      box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:420px';
+      box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:400px';
       return;
     }
 
     const el = document.querySelector(step.target);
-    if (!el || !el.offsetParent) {
+    if (!el || !el.getBoundingClientRect || el.getBoundingClientRect().width === 0) {
       spotlight.style.display = 'none';
-      box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:420px';
+      box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:400px';
       return;
     }
 
     const rect = el.getBoundingClientRect();
     const pad  = 8;
     spotlight.style.cssText =
-      `display:block;top:${rect.top - pad}px;left:${rect.left - pad}px;` +
-      `width:${rect.width + pad * 2}px;height:${rect.height + pad * 2}px`;
+      `display:block;top:${rect.top-pad}px;left:${rect.left-pad}px;` +
+      `width:${rect.width+pad*2}px;height:${rect.height+pad*2}px`;
 
     const vw = window.innerWidth, vh = window.innerHeight;
-    const bw = 340, bh = 280, mg = 16;
+    const bw = 340, bh = 300, mg = 14;
     let t, l;
 
     switch (step.position) {
@@ -307,137 +431,11 @@ const Tutorial = {
         l = Math.max(mg, Math.min(rect.left, vw - bw - mg));
         break;
       default:
-        box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:420px';
+        box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:400px';
         return;
     }
 
     box.style.cssText = `position:fixed;top:${t}px;left:${l}px;max-width:${bw}px;transform:none`;
-    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  },
-
-  // ── Demo simulation ───────────────────────────────────────
-  showDemoFeatures() {
-    if (!MapManager.map || this._demoLayers.length) return;
-
-    // Move map to demo area
-    MapManager.map.setView([-6.2907, 106.8018], 16);
-
-    const addWithDelay = (fn, delay) => setTimeout(() => {
-      if (!this._overlay) return; // tutorial was closed
-      const layer = fn();
-      if (layer) this._demoLayers.push(layer);
-    }, delay);
-
-    // Kavling A — perumahan merah
-    addWithDelay(() => {
-      const d = this.DEMO_DATA.kavlingA;
-      const l = L.geoJSON(d, {
-        style: { color: '#e74c3c', fillColor: '#e74c3c', weight: 2, fillOpacity: 0.45 },
-      }).bindPopup(`
-        <div class="popup-content">
-          <strong>${d.properties.name}</strong>
-          <br><span class="popup-cat">${d.properties.category}</span>
-          <br>Luas: <b>${d.properties.area}</b>
-        </div>`).addTo(MapManager.map);
-      return l;
-    }, 300);
-
-    // Kavling B — perumahan oranye
-    addWithDelay(() => {
-      const d = this.DEMO_DATA.kavlingB;
-      const l = L.geoJSON(d, {
-        style: { color: '#e67e22', fillColor: '#e67e22', weight: 2, fillOpacity: 0.45 },
-      }).bindPopup(`
-        <div class="popup-content">
-          <strong>${d.properties.name}</strong>
-          <br><span class="popup-cat">${d.properties.category}</span>
-          <br>Luas: <b>${d.properties.area}</b>
-        </div>`).addTo(MapManager.map);
-      return l;
-    }, 700);
-
-    // Fasum — hijau
-    addWithDelay(() => {
-      const d = this.DEMO_DATA.fasumBlock;
-      const l = L.geoJSON(d, {
-        style: { color: '#27ae60', fillColor: '#27ae60', weight: 2, fillOpacity: 0.4 },
-      }).bindPopup(`
-        <div class="popup-content">
-          <strong>${d.properties.name}</strong>
-          <br><span class="popup-cat">${d.properties.category}</span>
-          <br>Luas: <b>${d.properties.area}</b>
-        </div>`).addTo(MapManager.map);
-      return l;
-    }, 1100);
-
-    // Jalan utama — abu
-    addWithDelay(() => {
-      const d = this.DEMO_DATA.jalanUtama;
-      const l = L.geoJSON(d, {
-        style: { color: '#7f8c8d', weight: 4, opacity: 0.9 },
-      }).bindPopup(`
-        <div class="popup-content">
-          <strong>${d.properties.name}</strong>
-          <br><span class="popup-cat">${d.properties.category}</span>
-          <br>Panjang: <b>${d.properties.length}</b>
-        </div>`).addTo(MapManager.map);
-      return l;
-    }, 1500);
-
-    // Jalan sub
-    addWithDelay(() => {
-      const d = this.DEMO_DATA.jalanSub;
-      const l = L.geoJSON(d, {
-        style: { color: '#95a5a6', weight: 3, opacity: 0.8 },
-      }).bindPopup(`
-        <div class="popup-content">
-          <strong>${d.properties.name}</strong>
-          <br><span class="popup-cat">${d.properties.category}</span>
-          <br>Panjang: <b>${d.properties.length}</b>
-        </div>`).addTo(MapManager.map);
-      return l;
-    }, 1800);
-
-    // Gerbang marker
-    addWithDelay(() => {
-      const d = this.DEMO_DATA.gerbang;
-      const icon = L.divIcon({
-        className: '',
-        html: '<div style="background:#3498db;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
-        iconSize: [14, 14], iconAnchor: [7, 7],
-      });
-      const c = d.geometry.coordinates;
-      const l = L.marker([c[1], c[0]], { icon })
-        .bindPopup(`<div class="popup-content"><strong>${d.properties.name}</strong><br><span class="popup-cat">📍 Marker</span></div>`)
-        .addTo(MapManager.map);
-      return l;
-    }, 2100);
-
-    // Pos keamanan marker
-    addWithDelay(() => {
-      const d = this.DEMO_DATA.taman;
-      const icon = L.divIcon({
-        className: '',
-        html: '<div style="background:#9b59b6;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
-        iconSize: [14, 14], iconAnchor: [7, 7],
-      });
-      const c = d.geometry.coordinates;
-      const l = L.marker([c[1], c[0]], { icon })
-        .bindPopup(`<div class="popup-content"><strong>${d.properties.name}</strong><br><span class="popup-cat">📍 Marker</span></div>`)
-        .addTo(MapManager.map);
-      return l;
-    }, 2400);
-
-    // Open a popup after all layers loaded to show area data
-    addWithDelay(() => {
-      const d = this.DEMO_DATA.kavlingA;
-      if (this._demoLayers[0]) this._demoLayers[0].openPopup();
-      return null;
-    }, 3000);
-  },
-
-  clearDemoFeatures() {
-    this._demoLayers.forEach(l => { try { MapManager.map?.removeLayer(l); } catch {} });
-    this._demoLayers = [];
+    el.scrollIntoView({ block:'nearest', behavior:'smooth' });
   },
 };
