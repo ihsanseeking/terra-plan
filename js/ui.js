@@ -125,6 +125,13 @@ const UI = {
     if (feature.area_m2)  stats += `<div>Luas: <b>${Geo.formatAreaBoth(feature.area_m2)}</b></div>`;
     if (feature.length_m) stats += `<div>Panjang: <b>${Geo.formatLength(feature.length_m)}</b></div>`;
     document.getElementById('fm-stats').innerHTML = stats;
+
+    // Show/hide Edit Bentuk button (not for drone overlays)
+    const btnEditShape = document.getElementById('btn-edit-shape');
+    if (btnEditShape) {
+      btnEditShape.style.display = '';
+      btnEditShape.onclick = () => App.startShapeEdit(feature.id);
+    }
   },
 
   // ── Project modal ─────────────────────────────────────────

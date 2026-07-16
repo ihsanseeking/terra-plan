@@ -290,12 +290,23 @@ const App = {
   },
 
   async deleteLayer(layerId) {
-    if (!confirm('Hapus layer ini?')) return;
+    const featuresInLayer = this.state.features.filter(f => f.layer_id === layerId);
+    const confirmMsg = featuresInLayer.length
+      ? `Hapus layer ini beserta ${featuresInLayer.length} fitur di dalamnya?`
+      : 'Hapus layer ini?';
+    if (!confirm(confirmMsg)) return;
     try {
+      // Delete features in this layer from DB first
+      await Promise.all(featuresInLayer.map(f => DB.deleteFeature(f.id)));
+      featuresInLayer.forEach(f => MapManager.removeFeature(f.id));
+      this.state.features = this.state.features.filter(f => f.layer_id !== layerId);
+
       await DB.deleteLayer(layerId);
       this.state.layers = this.state.layers.filter(l => l.id !== layerId);
+      if (this.state.activeLayerId === layerId) this.state.activeLayerId = null;
       MapManager.removeLayerGroup(layerId);
       UI.renderLayers(this.state.layers, true);
+      UI.renderFeatures(this.state.features, this.state.layers, true);
       UI.toast('Layer dihapus', 'success');
     } catch (e) { UI.toast('Gagal hapus layer: ' + e.message, 'error'); }
   },
@@ -348,6 +359,55 @@ const App = {
       UI.closeModal('modal-feature');
       UI.toast('Fitur dihapus', 'success');
     } catch (e) { UI.toast('Gagal hapus: ' + e.message, 'error'); }
+  },
+
+  // ── Shape editing ─────────────────────────────────────────
+  startShapeEdit(featureId) {
+    const feature = this.state.features.find(f => f.id === featureId);
+    if (!feature) return;
+    this._editingOriginal = JSON.parse(JSON.stringify(feature));
+    this.state.selectedFeatureId = featureId;
+    UI.closeAllModals();
+    MapManager.fitFeature(featureId);
+    const ok = MapManager.startEditFeature(featureId);
+    if (!ok) { UI.toast('Tidak bisa mengedit bentuk fitur ini', 'error'); return; }
+    document.getElementById('edit-bar').style.display = 'flex';
+    document.getElementById('edit-bar-name').textContent = feature.name || 'Tanpa nama';
+    UI.toast('Drag titik-titik untuk mengubah bentuk', 'info', 4000);
+  },
+
+  async saveShapeEdit() {
+    const featureId = this.state.selectedFeatureId;
+    if (!featureId) return;
+    const geo = MapManager.finishEditFeature();
+    if (!geo) return;
+
+    const feature = this.state.features.find(f => f.id === featureId);
+    const area_m2  = feature?.type === 'polygon'  ? Geo.polygonArea(geo) : null;
+    const length_m = feature?.type === 'polyline' ? Geo.lineLength(geo)  : null;
+
+    try {
+      const updated = await DB.updateFeature(featureId, { geojson: geo, area_m2, length_m });
+      const idx = this.state.features.findIndex(f => f.id === featureId);
+      if (idx !== -1) this.state.features[idx] = { ...this.state.features[idx], ...updated };
+      // Re-render with updated shape
+      MapManager.removeFeature(featureId);
+      MapManager.renderFeature(this.state.features[idx], this.state.features[idx].layer_id || '_default', true);
+      UI.renderFeatures(this.state.features, this.state.layers, true);
+      document.getElementById('edit-bar').style.display = 'none';
+      this._editingOriginal = null;
+      const metric = area_m2 ? Geo.formatAreaBoth(area_m2) : length_m ? Geo.formatLength(length_m) : '';
+      UI.toast(`Bentuk disimpan${metric ? ' — ' + metric : ''}`, 'success');
+    } catch (e) {
+      UI.toast('Gagal simpan bentuk: ' + e.message, 'error');
+    }
+  },
+
+  cancelShapeEdit() {
+    MapManager.cancelEditFeature(this._editingOriginal, true);
+    this._editingOriginal = null;
+    document.getElementById('edit-bar').style.display = 'none';
+    UI.toast('Edit bentuk dibatalkan', 'info');
   },
 
   // ── Drawing ───────────────────────────────────────────────
@@ -614,6 +674,10 @@ const App = {
         document.getElementById(`tab-${tab}`).classList.add('active');
       });
     });
+
+    // ── Shape edit bar ──
+    document.getElementById('btn-edit-save').addEventListener('click', () => this.saveShapeEdit());
+    document.getElementById('btn-edit-cancel').addEventListener('click', () => this.cancelShapeEdit());
 
     // ── Close modals ──
     document.querySelectorAll('.modal-close, .btn-modal-cancel').forEach(btn =>

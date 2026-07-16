@@ -639,6 +639,57 @@ body {
 }
 .header-btn.primary:hover { background: var(--accent2); }
 
+/* ── Shape Edit Bar ──────────────────────────────────────── */
+#edit-bar {
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg2);
+  border: 2px solid #f39c12;
+  border-radius: 10px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 1000;
+  box-shadow: 0 4px 24px rgba(0,0,0,.5);
+  white-space: nowrap;
+  animation: edit-bar-in .2s ease;
+}
+
+@keyframes edit-bar-in {
+  from { opacity:0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity:1; transform: translateX(-50%) translateY(0); }
+}
+
+#edit-bar-icon { font-size: 20px; }
+#edit-bar-info { flex: 1; min-width: 0; }
+
+#btn-edit-save {
+  background: var(--success);
+  border: none;
+  color: white;
+  border-radius: var(--radius);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+#btn-edit-save:hover { opacity: .85; }
+
+#btn-edit-cancel {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 7px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+#btn-edit-cancel:hover { background: var(--error); border-color: var(--error); color: white; }
+
 /* ── Tutorial ────────────────────────────────────────────── */
 #tutorial-overlay {
   position: fixed;

@@ -99,7 +99,7 @@ const MapManager = {
     } else if (feature.type === 'marker') {
       const coords = geo.type === 'Feature' ? geo.geometry.coordinates : geo.coordinates;
       const icon = this._makeIcon(color);
-      layer = L.marker([coords[1], coords[0]], { icon });
+      layer = L.marker([coords[1], coords[0]], { icon, draggable: isAdmin });
     }
 
     if (!layer) return;
@@ -186,6 +186,80 @@ const MapManager = {
       this.map.removeLayer(layer);
       Object.values(this.layerGroups).forEach(g => { try { g.removeLayer(layer); } catch {} });
       delete this.droneImageLayers[overlayId];
+    }
+  },
+
+  // ── Shape editing ─────────────────────────────────────────
+  startEditFeature(featureId) {
+    const layer = this.featureLayers[featureId];
+    if (!layer) return false;
+    this._editingId = featureId;
+    this._editingType = layer instanceof L.Marker ? 'marker' : 'path';
+
+    if (this._editingType === 'marker') {
+      // Markers are already draggable (created with draggable:true in admin mode)
+      // Just give visual feedback
+      if (layer.dragging) layer.dragging.enable();
+      layer.setOpacity(0.7);
+    } else {
+      // Polygon or Polyline (L.GeoJSON / FeatureGroup)
+      layer.eachLayer(l => {
+        if (l.editing) {
+          l.editing.enable();
+          l.setStyle?.({ dashArray: '6 4', weight: 3 });
+        }
+      });
+    }
+    return true;
+  },
+
+  finishEditFeature() {
+    const featureId = this._editingId;
+    const layer = this.featureLayers[featureId];
+    if (!layer) return null;
+
+    let geo;
+    if (this._editingType === 'marker') {
+      if (layer.dragging) layer.dragging.disable();
+      layer.setOpacity(1);
+      geo = layer.toGeoJSON(); // Feature{Point}
+    } else {
+      layer.eachLayer(l => {
+        if (l.editing) {
+          l.editing.disable();
+          l.setStyle?.({ dashArray: null });
+        }
+      });
+      const fc = layer.toGeoJSON(); // FeatureCollection
+      geo = fc.features?.[0] || fc;
+    }
+
+    this._editingId = null;
+    this._editingType = null;
+    return geo;
+  },
+
+  cancelEditFeature(originalFeature, isAdmin) {
+    const featureId = this._editingId;
+    const layer = this.featureLayers[featureId];
+    if (layer) {
+      if (this._editingType === 'marker') {
+        if (layer.dragging) layer.dragging.disable();
+        layer.setOpacity(1);
+      } else {
+        layer.eachLayer(l => {
+          if (l.editing) {
+            l.editing.disable();
+            l.setStyle?.({ dashArray: null });
+          }
+        });
+      }
+      this.removeFeature(featureId);
+    }
+    this._editingId = null;
+    this._editingType = null;
+    if (originalFeature) {
+      this.renderFeature(originalFeature, originalFeature.layer_id || '_default', isAdmin);
     }
   },
 

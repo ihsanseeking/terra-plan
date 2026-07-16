@@ -131,6 +131,17 @@
       <button class="draw-btn" data-mode="marker">📍 Titik</button>
       <span style="margin-left:auto;font-size:11px;color:var(--text2)">Klik tombol → klik di peta untuk mulai</span>
     </div>
+
+    <!-- Floating shape edit bar (shown during shape editing) -->
+    <div id="edit-bar" style="display:none">
+      <span id="edit-bar-icon">✏️</span>
+      <div id="edit-bar-info">
+        <div id="edit-bar-name" style="font-weight:600;font-size:13px"></div>
+        <div style="font-size:11px;color:var(--text2)">Drag titik untuk ubah bentuk • Marker bisa digeser</div>
+      </div>
+      <button id="btn-edit-save">💾 Simpan</button>
+      <button id="btn-edit-cancel">✕ Batal</button>
+    </div>
   </div>
 
 </div><!-- /app -->
@@ -269,6 +280,7 @@
     </div>
     <div class="modal-footer">
       <button id="btn-feature-delete" class="btn-danger">Hapus</button>
+      <button id="btn-edit-shape" class="btn-secondary" title="Edit bentuk di peta">✏️ Edit Bentuk</button>
       <button class="btn-secondary btn-modal-cancel">Batal</button>
       <button id="btn-feature-save" class="btn-primary">Simpan</button>
     </div>

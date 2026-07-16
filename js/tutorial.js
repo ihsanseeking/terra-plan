@@ -238,6 +238,7 @@ const Tutorial = {
       this._step === total - 1 ? '' : 'Lewati tutorial';
 
     this._positionBox(step);
+    this._overlay.style.display = 'block';
 
     // Trigger simulation
     if (step.onEnter) this[step.onEnter]?.();
