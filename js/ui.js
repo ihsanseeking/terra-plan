@@ -37,6 +37,8 @@ const UI = {
     document.getElementById('btn-new-project').style.display  = isAdmin ? '' : 'none';
     document.getElementById('btn-add-layer').style.display    = isAdmin ? '' : 'none';
     document.getElementById('drawing-toolbar').style.display  = (isAdmin && project) ? 'flex' : 'none';
+    const fitBtn = document.getElementById('btn-fit-all');
+    if (fitBtn) fitBtn.style.display = project ? '' : 'none';
 
     // Mobile-only action bars visibility
     const mobProjects = document.getElementById('mob-projects-actions');
@@ -138,6 +140,74 @@ const UI = {
       btnEditShape.style.display = '';
       btnEditShape.onclick = () => App.startShapeEdit(feature.id);
     }
+  },
+
+  // ── Project stats ─────────────────────────────────────────
+  renderStats(features) {
+    const el = document.getElementById('project-stats');
+    if (!el) return;
+    if (!features.length) { el.style.display = 'none'; return; }
+
+    const totalArea = features.filter(f => f.type === 'polygon' && f.area_m2)
+      .reduce((s, f) => s + f.area_m2, 0);
+    const totalLen  = features.filter(f => f.type === 'polyline' && f.length_m)
+      .reduce((s, f) => s + f.length_m, 0);
+    const markerCt  = features.filter(f => f.type === 'marker').length;
+
+    let html = '';
+    if (totalArea)  html += `<div class="stat-item"><span class="stat-icon">⬡</span><b>${Geo.formatAreaBoth(totalArea)}</b></div>`;
+    if (totalLen)   html += `<div class="stat-item"><span class="stat-icon">〰</span><b>${Geo.formatLength(totalLen)}</b></div>`;
+    if (markerCt)   html += `<div class="stat-item"><span class="stat-icon">📍</span><b>${markerCt} titik</b></div>`;
+
+    el.innerHTML   = html;
+    el.style.display = html ? '' : 'none';
+  },
+
+  // ── Drone list ────────────────────────────────────────────
+  renderDroneList(overlays, isAdmin) {
+    const list   = document.getElementById('drone-list');
+    const addWrap = document.getElementById('drone-add-wrap');
+    if (addWrap) addWrap.style.display = isAdmin ? '' : 'none';
+    if (!overlays.length) {
+      list.innerHTML = '<p class="empty-msg">Belum ada overlay drone.</p>';
+      return;
+    }
+    list.innerHTML = overlays.map(o => `
+      <div class="drone-item" data-id="${o.id}">
+        <div class="drone-thumb">${o.image_url ? `<img src="${o.image_url}" />` : '🛸'}</div>
+        <div class="drone-info">
+          <div class="drone-name">${o.name || 'Overlay Drone'}</div>
+          <div class="drone-meta">Opasitas: ${o.opacity ?? 0.8}</div>
+        </div>
+        ${isAdmin ? `<button class="btn-icon" onclick="App.deleteDroneOverlay('${o.id}')" title="Hapus">🗑</button>` : ''}
+      </div>`).join('');
+  },
+
+  // ── Map legend ────────────────────────────────────────────
+  renderLegend(features) {
+    const body = document.getElementById('legend-body');
+    if (!body) return;
+
+    // Collect unique categories used in this project
+    const used = [...new Set(features.map(f => f.category).filter(Boolean))];
+    if (!used.length) { document.getElementById('map-legend').style.display = 'none'; return; }
+
+    body.innerHTML = used.map(cat => {
+      const style = getCategoryStyle(cat);
+      return `<div class="legend-item">
+        <span class="legend-swatch" style="background:${style.fill};border-color:${style.color}"></span>
+        <span>${cat}</span>
+      </div>`;
+    }).join('');
+  },
+
+  toggleLegend() {
+    const legend = document.getElementById('map-legend');
+    const btn    = document.getElementById('btn-legend');
+    if (!legend) return;
+    const show = legend.style.display === 'none';
+    legend.style.display = show ? '' : 'none';
+    btn?.classList.toggle('active', show);
   },
 
   // ── Project modal ─────────────────────────────────────────

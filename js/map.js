@@ -304,4 +304,18 @@ const MapManager = {
   fitProject(center, zoom) {
     this.map.setView(center, zoom);
   },
+
+  fitAllFeatures() {
+    const bounds = L.latLngBounds([]);
+    Object.values(this.featureLayers).forEach(layer => {
+      try {
+        if (layer.getBounds) bounds.extend(layer.getBounds());
+        else if (layer.getLatLng) bounds.extend(layer.getLatLng());
+      } catch {}
+    });
+    Object.values(this.droneImageLayers).forEach(layer => {
+      try { bounds.extend(layer.getBounds()); } catch {}
+    });
+    if (bounds.isValid()) this.map.fitBounds(bounds, { padding: [50, 50] });
+  },
 };

@@ -110,10 +110,13 @@
       <div class="panel-header">
         <div class="panel-actions">
           <button id="btn-back" class="btn-sm">← Kembali</button>
+          <button id="btn-fit-all" class="btn-sm" style="display:none" title="Zoom ke semua fitur">⊞ Fit All</button>
           <button id="btn-add-layer" class="btn-sm primary" style="display:none">+ Layer</button>
         </div>
       </div>
-      <!-- Mobile-only: Edit Proyek & Drone buttons (hidden on desktop) -->
+      <!-- Project stats bar -->
+      <div id="project-stats" style="display:none"></div>
+      <!-- Mobile-only actions -->
       <div class="mob-panel-actions" id="mob-layers-actions" style="display:none">
         <button class="btn-sm" onclick="document.getElementById('btn-edit-project').click()">✏️ Edit Proyek</button>
         <button class="btn-sm" onclick="document.getElementById('btn-add-drone').click()">🛸 Drone</button>
@@ -122,12 +125,19 @@
       <div class="tabs">
         <button class="tab-btn active" data-tab="layers">Layer</button>
         <button class="tab-btn" data-tab="features">Area/Jalur</button>
+        <button class="tab-btn" data-tab="drone">🛸 Drone</button>
       </div>
       <div id="tab-layers" class="tab-content active">
         <div id="layer-list"><p class="empty-msg">Belum ada layer.</p></div>
       </div>
       <div id="tab-features" class="tab-content">
         <div id="feature-list"><p class="empty-msg">Belum ada area.</p></div>
+      </div>
+      <div id="tab-drone" class="tab-content">
+        <div id="drone-list"><p class="empty-msg">Belum ada overlay drone.</p></div>
+        <div id="drone-add-wrap" style="padding:6px;display:none">
+          <button class="btn-sm primary" style="width:100%" onclick="document.getElementById('btn-add-drone').click()">+ Tambah Overlay Drone</button>
+        </div>
       </div>
     </div>
 
@@ -136,6 +146,15 @@
   <!-- Map container -->
   <div id="map-container">
     <div id="map"></div>
+    <!-- Legend -->
+    <div id="map-legend" style="display:none">
+      <div class="legend-header">
+        <span class="legend-title">🏷 Legenda</span>
+        <button id="btn-legend-close">✕</button>
+      </div>
+      <div id="legend-body"></div>
+    </div>
+    <button id="btn-legend" title="Tampilkan legenda zona">🏷</button>
     <div id="drawing-toolbar" style="display:none">
       <span class="draw-label">Gambar:</span>
       <button class="draw-btn" data-mode="polygon">⬡ Polygon</button>

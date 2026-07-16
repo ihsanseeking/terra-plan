@@ -215,6 +215,9 @@ const App = {
 
     UI.renderLayers(this.state.layers, this.state.isAdmin);
     UI.renderFeatures(this.state.features, this.state.layers, this.state.isAdmin);
+    UI.renderDroneList(this.state.droneOverlays, this.state.isAdmin);
+    UI.renderStats(this.state.features);
+    UI.renderLegend(this.state.features);
   },
 
   // ── Project CRUD ──────────────────────────────────────────
@@ -332,6 +335,8 @@ const App = {
       MapManager.removeLayerGroup(layerId);
       UI.renderLayers(this.state.layers, true);
       UI.renderFeatures(this.state.features, this.state.layers, true);
+      UI.renderStats(this.state.features);
+      UI.renderLegend(this.state.features);
       UI.toast('Layer dihapus', 'success');
     } catch (e) { UI.toast('Gagal hapus layer: ' + e.message, 'error'); }
   },
@@ -368,6 +373,8 @@ const App = {
       MapManager.removeFeature(id);
       MapManager.renderFeature(this.state.features[idx], updated.layer_id || '_default', true);
       UI.renderFeatures(this.state.features, this.state.layers, true);
+      UI.renderStats(this.state.features);
+      UI.renderLegend(this.state.features);
       UI.closeModal('modal-feature');
       UI.toast('Fitur diperbarui', 'success');
     } catch (e) { UI.toast('Gagal simpan: ' + e.message, 'error'); }
@@ -381,6 +388,8 @@ const App = {
       this.state.features = this.state.features.filter(f => f.id !== featureId);
       MapManager.removeFeature(featureId);
       UI.renderFeatures(this.state.features, this.state.layers, true);
+      UI.renderStats(this.state.features);
+      UI.renderLegend(this.state.features);
       UI.closeModal('modal-feature');
       UI.toast('Fitur dihapus', 'success');
     } catch (e) { UI.toast('Gagal hapus: ' + e.message, 'error'); }
@@ -483,6 +492,8 @@ const App = {
       this.state.features.push(feature);
       MapManager.renderFeature(feature, feature.layer_id || '_default', true);
       UI.renderFeatures(this.state.features, this.state.layers, true);
+      UI.renderStats(this.state.features);
+      UI.renderLegend(this.state.features);
 
       UI.populateFeatureModal(feature, this.state.layers);
       document.getElementById('fm-id').value = feature.id;
@@ -541,10 +552,23 @@ const App = {
       });
       this.state.droneOverlays.push(overlay);
       MapManager.renderDroneOverlay(overlay);
+      UI.renderDroneList(this.state.droneOverlays, this.state.isAdmin);
       UI.closeModal('modal-drone');
       this._resetDroneUpload();
       UI.toast('Overlay drone ditambahkan', 'success');
     } catch (e) { UI.toast('Gagal tambah overlay: ' + e.message, 'error'); }
+  },
+
+  // ── Drone overlay delete ──────────────────────────────────
+  async deleteDroneOverlay(id) {
+    if (!confirm('Hapus overlay drone ini?')) return;
+    try {
+      await DB.deleteDroneOverlay(id);
+      this.state.droneOverlays = this.state.droneOverlays.filter(o => o.id !== id);
+      MapManager.removeDroneOverlay(id);
+      UI.renderDroneList(this.state.droneOverlays, this.state.isAdmin);
+      UI.toast('Overlay drone dihapus', 'success');
+    } catch (e) { UI.toast('Gagal hapus overlay: ' + e.message, 'error'); }
   },
 
   // ── UI helpers ────────────────────────────────────────────
@@ -615,6 +639,9 @@ const App = {
     });
     document.getElementById('btn-share').addEventListener('click', () => this.copyPublicLink());
     document.getElementById('btn-help').addEventListener('click', () => Tutorial.start());
+    document.getElementById('btn-fit-all').addEventListener('click', () => MapManager.fitAllFeatures());
+    document.getElementById('btn-legend').addEventListener('click', () => UI.toggleLegend());
+    document.getElementById('btn-legend-close').addEventListener('click', () => UI.toggleLegend());
 
     // ── Back to project list ──
     document.getElementById('btn-back').addEventListener('click', () => {
