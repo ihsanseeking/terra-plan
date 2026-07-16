@@ -229,21 +229,17 @@ const Tutorial = {
     this._step = 0;
     this._buildDOM();
     this._show();
-    localStorage.setItem(`tp_tut_${this._currentContext}`, '1');
   },
 
   autoStart() {
-    const ctx = this._detectContext();
-    if (!localStorage.getItem(`tp_tut_${ctx}`)) {
+    if (!localStorage.getItem('tp_tut_seen')) {
+      localStorage.setItem('tp_tut_seen', '1');
       setTimeout(() => this.start(), 800);
     }
   },
 
-  // Reset a single context so it auto-shows again
-  resetContext(ctx) { localStorage.removeItem(`tp_tut_${ctx}`); },
-  resetAll() {
-    Object.keys(this.CONTEXTS).forEach(k => localStorage.removeItem(`tp_tut_${k}`));
-  },
+  // Reset so tutorial auto-shows again on next visit
+  resetSeen() { localStorage.removeItem('tp_tut_seen'); },
 
   // ── Step callbacks ────────────────────────────────────────
   fillAdminName() {
