@@ -159,4 +159,16 @@ const DB = {
     const { error } = await getDb().from('drone_overlays').delete().eq('id', id);
     if (error) throw error;
   },
+
+  // ── Storage ───────────────────────────────────────────────
+  async uploadDroneImage(file, adminId) {
+    const ext  = file.name.split('.').pop();
+    const path = `${adminId}/${Date.now()}.${ext}`;
+    const { error } = await getDb().storage
+      .from('drone-photos')
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (error) throw error;
+    const { data } = getDb().storage.from('drone-photos').getPublicUrl(path);
+    return data.publicUrl;
+  },
 };

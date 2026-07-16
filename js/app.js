@@ -478,9 +478,38 @@ const App = {
   },
 
   // ── Drone overlays ────────────────────────────────────────
+  _setDroneFile(file) {
+    if (file.size > 20 * 1024 * 1024) { UI.toast('File terlalu besar (maks 20 MB)', 'error'); return; }
+    this._droneFile = file;
+    document.getElementById('drone-upload-hint').style.display    = 'none';
+    document.getElementById('drone-upload-preview').style.display = '';
+    document.getElementById('drone-preview-name').textContent = `${file.name} (${(file.size/1024/1024).toFixed(1)} MB)`;
+    const reader = new FileReader();
+    reader.onload = (e) => { document.getElementById('drone-preview-img').src = e.target.result; };
+    reader.readAsDataURL(file);
+  },
+
+  _resetDroneUpload() {
+    this._droneFile = null;
+    document.getElementById('drone-file').value = '';
+    document.getElementById('drone-upload-hint').style.display    = '';
+    document.getElementById('drone-upload-preview').style.display = 'none';
+    document.getElementById('drone-preview-img').src = '';
+  },
+
   async addDroneOverlay(formData) {
     if (!this.state.isAdmin || !this.state.currentProject) return;
     try {
+      let imageUrl = formData.image_url;
+
+      // Upload file jika ada
+      if (this._droneFile) {
+        UI.toast('Mengupload gambar...', 'info', 10000);
+        imageUrl = await DB.uploadDroneImage(this._droneFile, this.state.currentAdmin.id);
+      }
+
+      if (!imageUrl) { UI.toast('Pilih file atau masukkan URL gambar', 'error'); return; }
+
       const bounds = [
         [parseFloat(formData.south), parseFloat(formData.west)],
         [parseFloat(formData.north), parseFloat(formData.east)],
@@ -488,12 +517,13 @@ const App = {
       const overlay = await DB.createDroneOverlay({
         project_id: this.state.currentProject.id,
         layer_id: this.state.activeLayerId || null,
-        name: formData.name, image_url: formData.image_url,
+        name: formData.name, image_url: imageUrl,
         bounds, opacity: parseFloat(formData.opacity) || 0.8,
       });
       this.state.droneOverlays.push(overlay);
       MapManager.renderDroneOverlay(overlay);
       UI.closeModal('modal-drone');
+      this._resetDroneUpload();
       UI.toast('Overlay drone ditambahkan', 'success');
     } catch (e) { UI.toast('Gagal tambah overlay: ' + e.message, 'error'); }
   },
@@ -650,8 +680,29 @@ const App = {
       document.getElementById('drone-south').value   = bounds.getSouth().toFixed(6);
       document.getElementById('drone-east').value    = bounds.getEast().toFixed(6);
       document.getElementById('drone-west').value    = bounds.getWest().toFixed(6);
+      this._resetDroneUpload();
       UI.openModal('modal-drone');
     });
+
+    // File picker via click or drag-drop
+    const uploadArea = document.getElementById('drone-upload-area');
+    const fileInput  = document.getElementById('drone-file');
+    uploadArea.addEventListener('click', (e) => {
+      if (!e.target.closest('#drone-upload-clear')) fileInput.click();
+    });
+    uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) this._setDroneFile(file);
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) this._setDroneFile(fileInput.files[0]);
+    });
+    document.getElementById('drone-upload-clear').addEventListener('click', () => this._resetDroneUpload());
+
     document.getElementById('btn-drone-save').addEventListener('click', () => {
       this.addDroneOverlay({
         name:      document.getElementById('drone-name').value.trim(),

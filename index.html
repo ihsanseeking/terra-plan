@@ -297,8 +297,20 @@
       <input id="drone-name" type="text" placeholder="Foto udara area barat" />
     </div>
     <div class="form-group">
-      <label>URL Gambar (HTTPS)</label>
-      <input id="drone-url" type="url" placeholder="https://..." />
+      <label>Gambar</label>
+      <div id="drone-upload-area" class="upload-area">
+        <div id="drone-upload-hint">📁 Klik untuk pilih file, atau drag & drop<br><span style="font-size:11px;color:var(--text2)">JPG, PNG, WEBP — maks 20 MB</span></div>
+        <div id="drone-upload-preview" style="display:none">
+          <img id="drone-preview-img" style="max-height:80px;border-radius:4px;margin-bottom:6px" />
+          <div id="drone-preview-name" style="font-size:11px;color:var(--text2)"></div>
+          <button type="button" id="drone-upload-clear" style="background:none;border:none;color:var(--error);font-size:11px;cursor:pointer;margin-top:4px">✕ Ganti file</button>
+        </div>
+        <input id="drone-file" type="file" accept="image/*" style="display:none" />
+      </div>
+      <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--text2)">atau pakai URL langsung:</span>
+        <input id="drone-url" type="url" placeholder="https://..." style="flex:1;font-size:12px" />
+      </div>
     </div>
     <div style="background:var(--bg3);border-radius:6px;padding:10px;margin-bottom:12px">
       <div style="font-size:11px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Batas Koordinat</div>

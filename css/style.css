@@ -616,6 +616,25 @@ body {
 .login-title    { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 4px; }
 .login-subtitle { font-size: 12px; color: var(--text2); text-align: center; margin-bottom: 20px; }
 
+/* ── Upload area ─────────────────────────────────────────── */
+.upload-area {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.6;
+}
+.upload-area:hover, .upload-area.drag-over {
+  border-color: var(--accent);
+  background: rgba(79,142,247,.06);
+  color: var(--text);
+}
+.upload-area.drag-over { background: rgba(79,142,247,.12); }
+
 /* ── Form hint ───────────────────────────────────────────── */
 .form-hint {
   font-size: 11px;
