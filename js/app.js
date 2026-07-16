@@ -19,6 +19,7 @@ const App = {
     this._bindUIEvents();
     UI.showPanel('projects');
     await this.loadProjectList();
+    Tutorial.autoStart();
   },
 
   async loadProjectList() {
@@ -579,6 +580,9 @@ const App = {
       document.getElementById('fm-color').value = style.color;
       document.getElementById('fm-fill').value = style.fill;
     });
+
+    // Help / tutorial button
+    document.getElementById('btn-help').addEventListener('click', () => Tutorial.start());
 
     // Restore global admin from session
     if (sessionStorage.getItem('tp_global_admin') === 'true') {
