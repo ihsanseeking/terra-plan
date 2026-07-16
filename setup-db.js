@@ -81,13 +81,18 @@ function parseBlocks(sql) {
 async function main() {
   console.log('\n🗺  TerraPlan — Setup Database\n');
 
-  const schemaPath = path.join(__dirname, 'sql', 'schema.sql');
-  if (!fs.existsSync(schemaPath)) {
-    console.error('❌  sql/schema.sql tidak ditemukan');
+  // Run both schema files
+  const schemaFiles = [
+    path.join(__dirname, 'sql', 'schema.sql'),
+    path.join(__dirname, 'sql', 'schema_v2.sql'),
+  ].filter(p => fs.existsSync(p));
+
+  if (!schemaFiles.length) {
+    console.error('❌  Tidak ada file SQL ditemukan di folder sql/');
     process.exit(1);
   }
 
-  const schema = fs.readFileSync(schemaPath, 'utf8');
+  const schema = schemaFiles.map(p => fs.readFileSync(p, 'utf8')).join('\n\n');
   const blocks = parseBlocks(schema);
 
   console.log(`📋  Menjalankan ${blocks.length} blok SQL...\n`);

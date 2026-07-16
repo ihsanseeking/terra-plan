@@ -1,6 +1,9 @@
-// Main application state + event orchestration
+// TerraPlan — Main application
 const App = {
   state: {
+    mode: 'landing',        // 'landing' | 'public' | 'admin'
+    currentAdmin: null,     // admin object (session)
+    viewAdmin: null,        // admin object (public view target)
     currentProject: null,
     isAdmin: false,
     layers: [],
@@ -9,7 +12,6 @@ const App = {
     activeLayerId: null,
     selectedFeatureId: null,
     drawMode: null,
-    isGlobalAdmin: false, // can see all projects
   },
 
   // ── Boot ─────────────────────────────────────────────────
@@ -17,44 +19,156 @@ const App = {
     MapManager.init(CONFIG.defaultCenter, CONFIG.defaultZoom);
     this._bindMapEvents();
     this._bindUIEvents();
-    UI.showPanel('projects');
-    await this.loadProjectList();
+
+    const route = Router.getMode();
+    this.state.mode = route.mode;
+
+    if (route.mode === 'public') {
+      await this._initPublicView(route.slug);
+    } else if (route.mode === 'admin') {
+      await this._initAdminGate(route.slug);
+    } else {
+      this._initLanding();
+    }
+
     Tutorial.autoStart();
   },
 
+  // ── Landing ───────────────────────────────────────────────
+  _initLanding() {
+    UI.showPanel('landing');
+    UI.setHeader(null, false, null);
+  },
+
+  // ── Public view ───────────────────────────────────────────
+  async _initPublicView(slug) {
+    try {
+      const admin = await DB.getAdminBySlug(slug);
+      if (!admin) {
+        UI.toast(`Workspace "${slug}" tidak ditemukan`, 'error');
+        this._initLanding();
+        return;
+      }
+      this.state.viewAdmin = admin;
+      this.state.mode = 'public';
+      UI.setHeader(null, false, admin);
+      await this.loadProjectList();
+      UI.showPanel('projects');
+    } catch (e) {
+      UI.toast('Gagal memuat workspace: ' + e.message, 'error');
+      this._initLanding();
+    }
+  },
+
+  // ── Admin gate (login or auto-resume session) ─────────────
+  async _initAdminGate(slug) {
+    const session = Auth.getSession();
+    if (session && session.slug === slug) {
+      // Resume existing session
+      this.state.currentAdmin = session;
+      this.state.isAdmin = true;
+      UI.setHeader(null, true, session);
+      await this.loadProjectList();
+      UI.showPanel('projects');
+    } else {
+      // Show login for this slug
+      UI.showPanel('admin-login');
+      document.getElementById('login-slug-label').textContent = slug;
+      document.getElementById('login-username').value = '';
+      document.getElementById('login-password').value = '';
+    }
+  },
+
+  // ── Auth actions ──────────────────────────────────────────
+  async doLogin() {
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+    if (!username || !password) { UI.toast('Lengkapi username dan password', 'error'); return; }
+    try {
+      const admin = await Auth.login(username, password);
+      this.state.currentAdmin = admin;
+      this.state.isAdmin = true;
+      Router.setURL('admin', admin.slug);
+      UI.setHeader(null, true, admin);
+      await this.loadProjectList();
+      UI.showPanel('projects');
+      UI.toast(`Selamat datang, ${admin.display_name || admin.username}!`, 'success');
+    } catch (e) {
+      UI.toast(e.message, 'error');
+    }
+  },
+
+  async doRegister() {
+    try {
+      const admin = await Auth.register({
+        username:     document.getElementById('reg-username').value.trim(),
+        slug:         document.getElementById('reg-slug').value.trim(),
+        displayName:  document.getElementById('reg-display').value.trim(),
+        password:     document.getElementById('reg-password').value,
+        confirmPassword: document.getElementById('reg-confirm').value,
+        platformKey:  document.getElementById('reg-key').value.trim(),
+      });
+      this.state.currentAdmin = admin;
+      this.state.isAdmin = true;
+      UI.closeModal('modal-register');
+      Router.setURL('admin', admin.slug);
+      UI.setHeader(null, true, admin);
+      await this.loadProjectList();
+      UI.showPanel('projects');
+      UI.toast(`Akun berhasil dibuat! Selamat datang, ${admin.display_name || admin.username}`, 'success');
+    } catch (e) {
+      UI.toast(e.message, 'error');
+    }
+  },
+
+  doLogout() {
+    Auth.logout();
+    this.state.currentAdmin = null;
+    this.state.isAdmin = false;
+    this.state.currentProject = null;
+    Router.setURL(null, null);
+    MapManager.clearAllLayers();
+    this._initLanding();
+    UI.toast('Berhasil keluar', 'info');
+  },
+
+  // ── Project list ──────────────────────────────────────────
   async loadProjectList() {
     try {
-      UI.showPanel('projects');
       MapManager.clearAllLayers();
-      UI.setProjectHeader(null, false);
+      this.state.currentProject = null;
 
-      const projects = this.state.isGlobalAdmin
-        ? await DB.getAllProjects()
-        : await DB.getPublicProjects();
+      let projects;
+      if (this.state.isAdmin && this.state.currentAdmin) {
+        projects = await DB.getAllProjectsByAdmin(this.state.currentAdmin.id);
+      } else if (this.state.viewAdmin) {
+        projects = await DB.getPublicProjectsByAdmin(this.state.viewAdmin.id);
+      } else {
+        projects = [];
+      }
 
-      UI.renderProjectList(projects, this.state.isGlobalAdmin);
+      UI.renderProjectList(projects, this.state.isAdmin);
+      const admin = this.state.currentAdmin || this.state.viewAdmin;
+      UI.setHeader(null, this.state.isAdmin, admin);
     } catch (e) {
       UI.toast('Gagal memuat proyek: ' + e.message, 'error');
     }
   },
 
-  // ── Project ───────────────────────────────────────────────
+  // ── Open project ──────────────────────────────────────────
   async openProject(id) {
     try {
       const project = await DB.getProject(id);
       this.state.currentProject = project;
-      this.state.isAdmin = Auth.isAdmin(id);
       this.state.activeLayerId = null;
       this.state.selectedFeatureId = null;
 
       MapManager.clearAllLayers();
-      MapManager.fitProject(
-        [project.center_lat, project.center_lng],
-        project.zoom_level
-      );
+      MapManager.fitProject([project.center_lat, project.center_lng], project.zoom_level);
 
       await this._loadProjectData();
-      UI.setProjectHeader(project, this.state.isAdmin);
+      const admin = this.state.currentAdmin || this.state.viewAdmin;
+      UI.setHeader(project, this.state.isAdmin, admin);
       UI.showPanel('layers');
     } catch (e) {
       UI.toast('Gagal membuka proyek: ' + e.message, 'error');
@@ -64,57 +178,49 @@ const App = {
   async _loadProjectData() {
     const id = this.state.currentProject.id;
     [this.state.layers, this.state.features, this.state.droneOverlays] = await Promise.all([
-      DB.getLayers(id),
-      DB.getFeatures(id),
-      DB.getDroneOverlays(id),
+      DB.getLayers(id), DB.getFeatures(id), DB.getDroneOverlays(id),
     ]);
 
-    // Init layer groups
     this.state.layers.forEach(l => {
       MapManager.addLayerGroup(l.id);
       if (!l.visible) MapManager.setLayerVisible(l.id, false);
     });
-
-    // Render features
-    this.state.features.forEach(f => {
-      MapManager.renderFeature(f, f.layer_id || '_default', this.state.isAdmin);
-    });
-
-    // Render drone overlays
+    this.state.features.forEach(f => MapManager.renderFeature(f, f.layer_id || '_default', this.state.isAdmin));
     this.state.droneOverlays.forEach(o => MapManager.renderDroneOverlay(o));
 
     UI.renderLayers(this.state.layers, this.state.isAdmin);
     UI.renderFeatures(this.state.features, this.state.layers, this.state.isAdmin);
   },
 
+  // ── Project CRUD ──────────────────────────────────────────
   async saveProject(formData) {
+    if (!this.state.isAdmin || !this.state.currentAdmin) return;
     try {
       const payload = {
-        name: formData.name,
-        description: formData.description,
-        location: formData.location,
-        status: formData.status,
-        pin: formData.pin,
+        name: formData.name, description: formData.description,
+        location: formData.location, status: formData.status,
         zoom_level: parseInt(formData.zoom_level),
         center_lat: parseFloat(formData.lat),
         center_lng: parseFloat(formData.lng),
+        admin_id: this.state.currentAdmin.id,
       };
 
       if (formData.id) {
         await DB.updateProject(formData.id, payload);
         if (this.state.currentProject?.id === formData.id) {
           this.state.currentProject = { ...this.state.currentProject, ...payload };
-          UI.setProjectHeader(this.state.currentProject, this.state.isAdmin);
+          const admin = this.state.currentAdmin;
+          UI.setHeader(this.state.currentProject, true, admin);
         }
         UI.toast('Proyek diperbarui', 'success');
       } else {
         const project = await DB.createProject(payload);
         UI.toast('Proyek dibuat', 'success');
+        UI.closeModal('modal-project');
         await this.openProject(project.id);
+        return;
       }
-
       UI.closeModal('modal-project');
-      if (!formData.id) return;
       await this.loadProjectList();
     } catch (e) {
       UI.toast('Gagal menyimpan: ' + e.message, 'error');
@@ -122,96 +228,54 @@ const App = {
   },
 
   async deleteProject(id, e) {
-    e && e.stopPropagation();
+    e?.stopPropagation();
     if (!confirm('Hapus proyek ini beserta semua datanya?')) return;
     try {
       await DB.deleteProject(id);
       UI.toast('Proyek dihapus', 'success');
       if (this.state.currentProject?.id === id) {
         this.state.currentProject = null;
-        await this.loadProjectList();
-      } else {
-        await this.loadProjectList();
       }
+      await this.loadProjectList();
+      UI.showPanel('projects');
     } catch (e) {
       UI.toast('Gagal menghapus: ' + e.message, 'error');
     }
   },
 
-  // ── Auth ──────────────────────────────────────────────────
-  async verifyPin(pin) {
-    const id = this.state.currentProject?.id;
-    if (!id) return;
+  // ── Share link ────────────────────────────────────────────
+  async copyPublicLink() {
+    const admin = this.state.currentAdmin;
+    if (!admin) return;
+    const link = Router.getPublicLink(admin.slug);
     try {
-      const ok = await Auth.verify(id, pin);
-      if (ok) {
-        this.state.isAdmin = true;
-        UI.setProjectHeader(this.state.currentProject, true);
-        UI.renderLayers(this.state.layers, true);
-        UI.renderFeatures(this.state.features, this.state.layers, true);
-        UI.closeModal('modal-pin');
-        UI.toast('Mode admin aktif', 'success');
-      } else {
-        UI.toast('PIN salah', 'error');
-      }
-    } catch (e) {
-      UI.toast('Error: ' + e.message, 'error');
-    }
-  },
-
-  logout() {
-    if (!this.state.currentProject) return;
-    Auth.logout(this.state.currentProject.id);
-    this.state.isAdmin = false;
-    MapManager.disableDrawing();
-    this.state.drawMode = null;
-    document.querySelectorAll('.draw-btn').forEach(b => b.classList.remove('active'));
-    UI.setProjectHeader(this.state.currentProject, false);
-    UI.renderLayers(this.state.layers, false);
-    UI.renderFeatures(this.state.features, this.state.layers, false);
-    UI.toast('Keluar dari mode admin', 'info');
-  },
-
-  // ── Global admin (see all projects) ──────────────────────
-  async verifyGlobalAdmin(pin) {
-    // Global admin PIN is hardcoded "terraadmin" or configurable
-    if (pin === 'terraadmin' || pin === '0000') {
-      this.state.isGlobalAdmin = true;
-      sessionStorage.setItem('tp_global_admin', 'true');
-      UI.closeModal('modal-global-pin');
-      await this.loadProjectList();
-      UI.toast('Mode admin global aktif', 'success');
-    } else {
-      UI.toast('PIN global salah', 'error');
+      await navigator.clipboard.writeText(link);
+      UI.toast('Link publik disalin: ' + link, 'success', 5000);
+    } catch {
+      prompt('Copy link publik ini:', link);
     }
   },
 
   // ── Layers ────────────────────────────────────────────────
   async addLayer(name, color) {
-    if (!this.state.currentProject || !this.state.isAdmin) return;
+    if (!this.state.isAdmin || !this.state.currentProject) return;
     try {
       const layer = await DB.createLayer({
-        project_id: this.state.currentProject.id,
-        name,
-        color,
-        fill_color: color,
-        sort_order: this.state.layers.length,
+        project_id: this.state.currentProject.id, name,
+        color, fill_color: color, sort_order: this.state.layers.length,
       });
       this.state.layers.push(layer);
       MapManager.addLayerGroup(layer.id);
       UI.renderLayers(this.state.layers, true);
       this.state.activeLayerId = layer.id;
       UI.toast(`Layer "${name}" ditambahkan`, 'success');
-    } catch (e) {
-      UI.toast('Gagal tambah layer: ' + e.message, 'error');
-    }
+    } catch (e) { UI.toast('Gagal tambah layer: ' + e.message, 'error'); }
   },
 
   setActiveLayer(layerId) {
     this.state.activeLayerId = layerId;
-    document.querySelectorAll('.layer-item').forEach(el => {
-      el.classList.toggle('active', el.dataset.id === layerId);
-    });
+    document.querySelectorAll('.layer-item').forEach(el =>
+      el.classList.toggle('active', el.dataset.id === layerId));
     const layer = this.state.layers.find(l => l.id === layerId);
     if (layer) UI.toast(`Layer aktif: ${layer.name}`, 'info');
   },
@@ -219,26 +283,21 @@ const App = {
   async toggleLayerVisibility(layerId, btn) {
     const layer = this.state.layers.find(l => l.id === layerId);
     if (!layer) return;
-    const newVisible = !layer.visible;
-    layer.visible = newVisible;
-    MapManager.setLayerVisible(layerId, newVisible);
-    if (btn) btn.textContent = newVisible ? '👁' : '🙈';
-    if (this.state.isAdmin) {
-      await DB.updateLayer(layerId, { visible: newVisible }).catch(() => {});
-    }
+    layer.visible = !layer.visible;
+    MapManager.setLayerVisible(layerId, layer.visible);
+    if (btn) btn.textContent = layer.visible ? '👁' : '🙈';
+    if (this.state.isAdmin) await DB.updateLayer(layerId, { visible: layer.visible }).catch(() => {});
   },
 
   async deleteLayer(layerId) {
-    if (!confirm('Hapus layer ini? Semua fitur di layer ini akan kehilangan referensi layer.')) return;
+    if (!confirm('Hapus layer ini?')) return;
     try {
       await DB.deleteLayer(layerId);
       this.state.layers = this.state.layers.filter(l => l.id !== layerId);
       MapManager.removeLayerGroup(layerId);
       UI.renderLayers(this.state.layers, true);
       UI.toast('Layer dihapus', 'success');
-    } catch (e) {
-      UI.toast('Gagal hapus layer: ' + e.message, 'error');
-    }
+    } catch (e) { UI.toast('Gagal hapus layer: ' + e.message, 'error'); }
   },
 
   // ── Features ──────────────────────────────────────────────
@@ -246,9 +305,7 @@ const App = {
     this.state.selectedFeatureId = featureId;
     const feature = this.state.features.find(f => f.id === featureId);
     if (!feature) return;
-
     MapManager.fitFeature(featureId);
-
     if (this.state.isAdmin) {
       UI.populateFeatureModal(feature, this.state.layers);
       document.getElementById('fm-id').value = feature.id;
@@ -261,8 +318,7 @@ const App = {
     if (!id) return;
     const style = getCategoryStyle(formData.category);
     const payload = {
-      name: formData.name,
-      label: formData.label,
+      name: formData.name, label: formData.label,
       category: formData.category,
       color: formData.color || style.color,
       fill_color: formData.fill || style.fill,
@@ -274,37 +330,29 @@ const App = {
       const idx = this.state.features.findIndex(f => f.id === id);
       if (idx !== -1) this.state.features[idx] = { ...this.state.features[idx], ...updated };
       MapManager.removeFeature(id);
-      MapManager.renderFeature(
-        this.state.features[idx],
-        updated.layer_id || '_default',
-        true
-      );
+      MapManager.renderFeature(this.state.features[idx], updated.layer_id || '_default', true);
       UI.renderFeatures(this.state.features, this.state.layers, true);
       UI.closeModal('modal-feature');
       UI.toast('Fitur diperbarui', 'success');
-    } catch (e) {
-      UI.toast('Gagal simpan: ' + e.message, 'error');
-    }
+    } catch (e) { UI.toast('Gagal simpan: ' + e.message, 'error'); }
   },
 
   async deleteFeature(featureId, e) {
-    e && e.stopPropagation();
+    e?.stopPropagation();
     if (!confirm('Hapus fitur ini?')) return;
     try {
       await DB.deleteFeature(featureId);
       this.state.features = this.state.features.filter(f => f.id !== featureId);
       MapManager.removeFeature(featureId);
       UI.renderFeatures(this.state.features, this.state.layers, true);
+      UI.closeModal('modal-feature');
       UI.toast('Fitur dihapus', 'success');
-    } catch (e) {
-      UI.toast('Gagal hapus: ' + e.message, 'error');
-    }
+    } catch (e) { UI.toast('Gagal hapus: ' + e.message, 'error'); }
   },
 
   // ── Drawing ───────────────────────────────────────────────
   setDrawMode(mode) {
-    if (!this.state.isAdmin) { UI.toast('Masuk mode admin terlebih dahulu', 'error'); return; }
-
+    if (!this.state.isAdmin) { UI.toast('Login admin terlebih dahulu', 'error'); return; }
     document.querySelectorAll('.draw-btn').forEach(b => b.classList.remove('active'));
     if (this.state.drawMode === mode) {
       this.state.drawMode = null;
@@ -313,9 +361,8 @@ const App = {
     }
     this.state.drawMode = mode;
     document.querySelector(`.draw-btn[data-mode="${mode}"]`)?.classList.add('active');
-
-    const layerColor = this._getActiveLayerColor();
-    MapManager.enableDrawing(mode, { color: layerColor, fillColor: layerColor, opacity: 0.4 });
+    const color = this._getActiveLayerColor();
+    MapManager.enableDrawing(mode, { color, fillColor: color, opacity: 0.4 });
   },
 
   _getActiveLayerColor() {
@@ -334,42 +381,30 @@ const App = {
 
     const typeMap = { polygon: 'polygon', polyline: 'polyline', marker: 'marker' };
     const type = typeMap[layerType];
-    if (!type) return;
+    if (!type || !this.state.currentProject) return;
 
     const geojson = layer.toGeoJSON();
-    let area_m2 = null, length_m = null;
-
-    if (type === 'polygon') area_m2 = Geo.polygonArea(geojson);
-    if (type === 'polyline') length_m = Geo.lineLength(geojson);
-
-    const layerColor = this._getActiveLayerColor();
-    const payload = {
-      project_id: this.state.currentProject.id,
-      layer_id: this.state.activeLayerId || null,
-      name: '',
-      type,
-      geojson,
-      area_m2,
-      length_m,
-      category: 'Default',
-      color: layerColor,
-      fill_color: layerColor,
-      opacity: 0.5,
-    };
+    const area_m2  = type === 'polygon'  ? Geo.polygonArea(geojson) : null;
+    const length_m = type === 'polyline' ? Geo.lineLength(geojson)  : null;
+    const color = this._getActiveLayerColor();
 
     try {
-      const feature = await DB.createFeature(payload);
+      const feature = await DB.createFeature({
+        project_id: this.state.currentProject.id,
+        layer_id: this.state.activeLayerId || null,
+        name: '', type, geojson, area_m2, length_m,
+        category: 'Default', color, fill_color: color, opacity: 0.5,
+      });
       this.state.features.push(feature);
       MapManager.renderFeature(feature, feature.layer_id || '_default', true);
       UI.renderFeatures(this.state.features, this.state.layers, true);
 
-      // Open edit modal immediately
       UI.populateFeatureModal(feature, this.state.layers);
       document.getElementById('fm-id').value = feature.id;
       UI.openModal('modal-feature');
 
-      let msg = type === 'polygon' ? `Luas: ${Geo.formatAreaBoth(area_m2)}` :
-                type === 'polyline' ? `Panjang: ${Geo.formatLength(length_m)}` : 'Marker ditambahkan';
+      const msg = type === 'polygon'  ? `Luas: ${Geo.formatAreaBoth(area_m2)}` :
+                  type === 'polyline' ? `Panjang: ${Geo.formatLength(length_m)}` : 'Marker ditambahkan';
       UI.toast(msg, 'success');
     } catch (e) {
       UI.toast('Gagal simpan: ' + e.message, 'error');
@@ -378,178 +413,189 @@ const App = {
 
   // ── Drone overlays ────────────────────────────────────────
   async addDroneOverlay(formData) {
-    if (!this.state.currentProject || !this.state.isAdmin) return;
+    if (!this.state.isAdmin || !this.state.currentProject) return;
     try {
       const bounds = [
         [parseFloat(formData.south), parseFloat(formData.west)],
         [parseFloat(formData.north), parseFloat(formData.east)],
       ];
-      const payload = {
+      const overlay = await DB.createDroneOverlay({
         project_id: this.state.currentProject.id,
         layer_id: this.state.activeLayerId || null,
-        name: formData.name,
-        image_url: formData.image_url,
-        bounds,
-        opacity: parseFloat(formData.opacity) || 0.8,
-      };
-      const overlay = await DB.createDroneOverlay(payload);
+        name: formData.name, image_url: formData.image_url,
+        bounds, opacity: parseFloat(formData.opacity) || 0.8,
+      });
       this.state.droneOverlays.push(overlay);
       MapManager.renderDroneOverlay(overlay);
       UI.closeModal('modal-drone');
       UI.toast('Overlay drone ditambahkan', 'success');
-    } catch (e) {
-      UI.toast('Gagal tambah overlay: ' + e.message, 'error');
-    }
+    } catch (e) { UI.toast('Gagal tambah overlay: ' + e.message, 'error'); }
   },
 
-  // ── Map center capture ────────────────────────────────────
+  // ── UI helpers ────────────────────────────────────────────
   captureMapCenter() {
     const c = MapManager.map.getCenter();
-    const z = MapManager.map.getZoom();
     document.getElementById('pm-lat').value = c.lat.toFixed(6);
     document.getElementById('pm-lng').value = c.lng.toFixed(6);
-    document.getElementById('pm-zoom').value = z;
+    document.getElementById('pm-zoom').value = MapManager.map.getZoom();
     UI.toast('Posisi peta disalin ke form', 'info');
   },
 
   // ── Event bindings ────────────────────────────────────────
   _bindMapEvents() {
     MapManager.map.on(L.Draw.Event.CREATED, (e) => this._onDrawCreated(e));
-    MapManager.map.on('click', () => {
-      if (!this.state.drawMode) UI.closeAllModals();
-    });
   },
 
   _bindUIEvents() {
-    // Back to projects
+    // ── Landing ──
+    document.getElementById('btn-view-go').addEventListener('click', () => {
+      const slug = document.getElementById('view-slug-input').value.trim();
+      if (!slug) { UI.toast('Masukkan kode workspace', 'error'); return; }
+      Router.setURL('view', slug);
+      this._initPublicView(slug);
+    });
+    document.getElementById('view-slug-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('btn-view-go').click();
+    });
+    document.getElementById('btn-goto-login').addEventListener('click', () => UI.showPanel('admin-login'));
+    document.getElementById('btn-goto-register').addEventListener('click', () => {
+      this._clearRegisterForm();
+      UI.openModal('modal-register');
+    });
+
+    // ── Admin login panel ──
+    document.getElementById('btn-do-login').addEventListener('click', () => this.doLogin());
+    document.getElementById('login-password').addEventListener('keydown', e => {
+      if (e.key === 'Enter') this.doLogin();
+    });
+    document.getElementById('btn-login-register').addEventListener('click', () => {
+      this._clearRegisterForm();
+      UI.openModal('modal-register');
+    });
+    document.getElementById('btn-login-back').addEventListener('click', () => {
+      Router.setURL(null, null);
+      this._initLanding();
+    });
+
+    // ── Register modal ──
+    document.getElementById('btn-do-register').addEventListener('click', () => this.doRegister());
+    // Auto-generate slug from username
+    document.getElementById('reg-username').addEventListener('input', (e) => {
+      const slugEl = document.getElementById('reg-slug');
+      if (!slugEl._userEdited) {
+        slugEl.value = e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      }
+    });
+    document.getElementById('reg-slug').addEventListener('input', (e) => {
+      e.target._userEdited = !!e.target.value;
+    });
+
+    // ── Header ──
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      if (confirm('Keluar dari akun admin?')) this.doLogout();
+    });
+    document.getElementById('btn-share').addEventListener('click', () => this.copyPublicLink());
+    document.getElementById('btn-help').addEventListener('click', () => Tutorial.start());
+
+    // ── Back to project list ──
     document.getElementById('btn-back').addEventListener('click', () => {
       this.state.currentProject = null;
-      this.state.isAdmin = false;
+      MapManager.clearAllLayers();
+      const admin = this.state.currentAdmin || this.state.viewAdmin;
+      UI.setHeader(null, this.state.isAdmin, admin);
       this.loadProjectList();
+      UI.showPanel('projects');
     });
 
-    // Admin panel toggle
-    document.getElementById('btn-admin').addEventListener('click', () => {
-      document.getElementById('pin-input').value = '';
-      UI.openModal('modal-pin');
-    });
-
-    document.getElementById('btn-logout').addEventListener('click', () => this.logout());
-
-    // PIN submit
-    document.getElementById('btn-pin-submit').addEventListener('click', () => {
-      this.verifyPin(document.getElementById('pin-input').value.trim());
-    });
-    document.getElementById('pin-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') this.verifyPin(e.target.value.trim());
-    });
-
-    // Global admin
-    document.getElementById('btn-global-admin').addEventListener('click', () => {
-      document.getElementById('global-pin-input').value = '';
-      UI.openModal('modal-global-pin');
-    });
-    document.getElementById('btn-global-pin-submit').addEventListener('click', () => {
-      this.verifyGlobalAdmin(document.getElementById('global-pin-input').value.trim());
-    });
-
-    // New project
+    // ── New/edit project ──
     document.getElementById('btn-new-project').addEventListener('click', () => {
-      if (!this.state.isGlobalAdmin) { UI.toast('Masuk mode admin global dulu', 'error'); return; }
       UI.populateProjectModal(null);
       UI.openModal('modal-project');
     });
-
-    // Edit project
     document.getElementById('btn-edit-project').addEventListener('click', () => {
       UI.populateProjectModal(this.state.currentProject);
       UI.openModal('modal-project');
     });
-
-    // Project form submit
     document.getElementById('btn-project-save').addEventListener('click', () => {
-      const f = document.getElementById('form-project');
       this.saveProject({
-        id: document.getElementById('pm-id').value,
-        name: document.getElementById('pm-name').value.trim(),
-        description: document.getElementById('pm-desc').value.trim(),
-        location: document.getElementById('pm-location').value.trim(),
-        status: document.getElementById('pm-status').value,
-        pin: document.getElementById('pm-pin').value.trim(),
-        zoom_level: document.getElementById('pm-zoom').value,
-        lat: document.getElementById('pm-lat').value,
-        lng: document.getElementById('pm-lng').value,
+        id:           document.getElementById('pm-id').value,
+        name:         document.getElementById('pm-name').value.trim(),
+        description:  document.getElementById('pm-desc').value.trim(),
+        location:     document.getElementById('pm-location').value.trim(),
+        status:       document.getElementById('pm-status').value,
+        zoom_level:   document.getElementById('pm-zoom').value,
+        lat:          document.getElementById('pm-lat').value,
+        lng:          document.getElementById('pm-lng').value,
       });
     });
-
     document.getElementById('btn-capture-center').addEventListener('click', () => this.captureMapCenter());
 
-    // Add layer
+    // ── Layer ──
     document.getElementById('btn-add-layer').addEventListener('click', () => {
       document.getElementById('layer-name-input').value = '';
       document.getElementById('layer-color-input').value = '#3388ff';
       UI.openModal('modal-layer');
     });
-
     document.getElementById('btn-layer-save').addEventListener('click', () => {
-      const name = document.getElementById('layer-name-input').value.trim();
+      const name  = document.getElementById('layer-name-input').value.trim();
       const color = document.getElementById('layer-color-input').value;
       if (!name) { UI.toast('Masukkan nama layer', 'error'); return; }
       this.addLayer(name, color);
       UI.closeModal('modal-layer');
     });
 
-    // Drawing toolbar
-    document.querySelectorAll('.draw-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.setDrawMode(btn.dataset.mode));
-    });
+    // ── Drawing toolbar ──
+    document.querySelectorAll('.draw-btn').forEach(btn =>
+      btn.addEventListener('click', () => this.setDrawMode(btn.dataset.mode)));
 
-    // Feature modal save
+    // ── Feature modal ──
     document.getElementById('btn-feature-save').addEventListener('click', () => {
       this.saveFeature({
-        id: document.getElementById('fm-id').value,
-        name: document.getElementById('fm-name').value.trim(),
-        label: document.getElementById('fm-label').value.trim(),
+        id:       document.getElementById('fm-id').value,
+        name:     document.getElementById('fm-name').value.trim(),
+        label:    document.getElementById('fm-label').value.trim(),
         category: document.getElementById('fm-category').value,
-        color: document.getElementById('fm-color').value,
-        fill: document.getElementById('fm-fill').value,
-        opacity: document.getElementById('fm-opacity').value,
+        color:    document.getElementById('fm-color').value,
+        fill:     document.getElementById('fm-fill').value,
+        opacity:  document.getElementById('fm-opacity').value,
         layer_id: document.getElementById('fm-layer').value,
       });
     });
-
     document.getElementById('btn-feature-delete').addEventListener('click', () => {
       const id = document.getElementById('fm-id').value;
       if (id) { UI.closeModal('modal-feature'); this.deleteFeature(id); }
     });
-
-    // Drone overlay
-    document.getElementById('btn-add-drone').addEventListener('click', () => {
-      // Pre-fill bounds from current map view
-      const bounds = MapManager.map.getBounds();
-      document.getElementById('drone-name').value = '';
-      document.getElementById('drone-url').value = '';
-      document.getElementById('drone-opacity').value = '0.8';
-      document.getElementById('drone-north').value = bounds.getNorth().toFixed(6);
-      document.getElementById('drone-south').value = bounds.getSouth().toFixed(6);
-      document.getElementById('drone-east').value = bounds.getEast().toFixed(6);
-      document.getElementById('drone-west').value = bounds.getWest().toFixed(6);
-      UI.openModal('modal-drone');
+    document.getElementById('fm-category').addEventListener('change', (e) => {
+      const style = getCategoryStyle(e.target.value);
+      document.getElementById('fm-color').value = style.color;
+      document.getElementById('fm-fill').value  = style.fill;
     });
 
+    // ── Drone overlay ──
+    document.getElementById('btn-add-drone').addEventListener('click', () => {
+      const bounds = MapManager.map.getBounds();
+      document.getElementById('drone-name').value    = '';
+      document.getElementById('drone-url').value     = '';
+      document.getElementById('drone-opacity').value = '0.8';
+      document.getElementById('drone-north').value   = bounds.getNorth().toFixed(6);
+      document.getElementById('drone-south').value   = bounds.getSouth().toFixed(6);
+      document.getElementById('drone-east').value    = bounds.getEast().toFixed(6);
+      document.getElementById('drone-west').value    = bounds.getWest().toFixed(6);
+      UI.openModal('modal-drone');
+    });
     document.getElementById('btn-drone-save').addEventListener('click', () => {
       this.addDroneOverlay({
-        name: document.getElementById('drone-name').value.trim(),
+        name:      document.getElementById('drone-name').value.trim(),
         image_url: document.getElementById('drone-url').value.trim(),
-        opacity: document.getElementById('drone-opacity').value,
-        north: document.getElementById('drone-north').value,
-        south: document.getElementById('drone-south').value,
-        east: document.getElementById('drone-east').value,
-        west: document.getElementById('drone-west').value,
+        opacity:   document.getElementById('drone-opacity').value,
+        north:     document.getElementById('drone-north').value,
+        south:     document.getElementById('drone-south').value,
+        east:      document.getElementById('drone-east').value,
+        west:      document.getElementById('drone-west').value,
       });
     });
 
-    // Basemap switcher
+    // ── Basemap switcher ──
     document.querySelectorAll('.basemap-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.basemap-btn').forEach(b => b.classList.remove('active'));
@@ -558,12 +604,7 @@ const App = {
       });
     });
 
-    // Close modal buttons
-    document.querySelectorAll('.modal-close, .btn-modal-cancel').forEach(btn => {
-      btn.addEventListener('click', () => UI.closeAllModals());
-    });
-
-    // Tab switching inside layers panel
+    // ── Tabs ──
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const tab = btn.dataset.tab;
@@ -574,20 +615,15 @@ const App = {
       });
     });
 
-    // Category auto-fill color
-    document.getElementById('fm-category').addEventListener('change', (e) => {
-      const style = getCategoryStyle(e.target.value);
-      document.getElementById('fm-color').value = style.color;
-      document.getElementById('fm-fill').value = style.fill;
-    });
+    // ── Close modals ──
+    document.querySelectorAll('.modal-close, .btn-modal-cancel').forEach(btn =>
+      btn.addEventListener('click', () => UI.closeAllModals()));
+  },
 
-    // Help / tutorial button
-    document.getElementById('btn-help').addEventListener('click', () => Tutorial.start());
-
-    // Restore global admin from session
-    if (sessionStorage.getItem('tp_global_admin') === 'true') {
-      this.state.isGlobalAdmin = true;
-    }
+  _clearRegisterForm() {
+    ['reg-username','reg-slug','reg-display','reg-password','reg-confirm','reg-key']
+      .forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('reg-slug')._userEdited = false;
   },
 };
 

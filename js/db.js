@@ -1,27 +1,50 @@
 // All Supabase database operations
 let _sb = null;
-
 function getDb() {
   if (!_sb) _sb = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
   return _sb;
 }
 
 const DB = {
-  // ── Projects ──────────────────────────────────────────────
-  async getPublicProjects() {
+  // ── Admins ────────────────────────────────────────────────
+  async getAdminByUsername(username) {
     const { data, error } = await getDb()
-      .from('projects')
-      .select('*')
-      .eq('status', 'aktif')
+      .from('admins').select('*').eq('username', username).maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  async getAdminBySlug(slug) {
+    const { data, error } = await getDb()
+      .from('admins').select('*').eq('slug', slug).maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  async createAdmin(payload) {
+    const { data, error } = await getDb()
+      .from('admins').insert(payload).select().single();
+    if (error) {
+      if (error.code === '23505') throw new Error('Username atau slug sudah digunakan');
+      throw error;
+    }
+    return data;
+  },
+
+  // ── Projects ──────────────────────────────────────────────
+  async getPublicProjectsByAdmin(adminId) {
+    const { data, error } = await getDb()
+      .from('projects').select('*')
+      .eq('admin_id', adminId).eq('status', 'aktif')
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data;
   },
 
-  async getAllProjects() {
+  async getAllProjectsByAdmin(adminId) {
     const { data, error } = await getDb()
-      .from('projects')
-      .select('*')
+      .from('projects').select('*')
+      .eq('admin_id', adminId)
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data;
@@ -29,31 +52,21 @@ const DB = {
 
   async getProject(id) {
     const { data, error } = await getDb()
-      .from('projects')
-      .select('*')
-      .eq('id', id)
-      .single();
+      .from('projects').select('*').eq('id', id).single();
     if (error) throw error;
     return data;
   },
 
   async createProject(payload) {
     const { data, error } = await getDb()
-      .from('projects')
-      .insert(payload)
-      .select()
-      .single();
+      .from('projects').insert(payload).select().single();
     if (error) throw error;
     return data;
   },
 
   async updateProject(id, payload) {
     const { data, error } = await getDb()
-      .from('projects')
-      .update(payload)
-      .eq('id', id)
-      .select()
-      .single();
+      .from('projects').update(payload).eq('id', id).select().single();
     if (error) throw error;
     return data;
   },
@@ -66,9 +79,7 @@ const DB = {
   // ── Layers ────────────────────────────────────────────────
   async getLayers(projectId) {
     const { data, error } = await getDb()
-      .from('layers')
-      .select('*')
-      .eq('project_id', projectId)
+      .from('layers').select('*').eq('project_id', projectId)
       .order('sort_order', { ascending: true });
     if (error) throw error;
     return data;
@@ -76,21 +87,14 @@ const DB = {
 
   async createLayer(payload) {
     const { data, error } = await getDb()
-      .from('layers')
-      .insert(payload)
-      .select()
-      .single();
+      .from('layers').insert(payload).select().single();
     if (error) throw error;
     return data;
   },
 
   async updateLayer(id, payload) {
     const { data, error } = await getDb()
-      .from('layers')
-      .update(payload)
-      .eq('id', id)
-      .select()
-      .single();
+      .from('layers').update(payload).eq('id', id).select().single();
     if (error) throw error;
     return data;
   },
@@ -103,9 +107,7 @@ const DB = {
   // ── Features ──────────────────────────────────────────────
   async getFeatures(projectId) {
     const { data, error } = await getDb()
-      .from('features')
-      .select('*')
-      .eq('project_id', projectId)
+      .from('features').select('*').eq('project_id', projectId)
       .order('created_at', { ascending: true });
     if (error) throw error;
     return data;
@@ -113,21 +115,14 @@ const DB = {
 
   async createFeature(payload) {
     const { data, error } = await getDb()
-      .from('features')
-      .insert(payload)
-      .select()
-      .single();
+      .from('features').insert(payload).select().single();
     if (error) throw error;
     return data;
   },
 
   async updateFeature(id, payload) {
     const { data, error } = await getDb()
-      .from('features')
-      .update(payload)
-      .eq('id', id)
-      .select()
-      .single();
+      .from('features').update(payload).eq('id', id).select().single();
     if (error) throw error;
     return data;
   },
@@ -140,9 +135,7 @@ const DB = {
   // ── Drone Overlays ────────────────────────────────────────
   async getDroneOverlays(projectId) {
     const { data, error } = await getDb()
-      .from('drone_overlays')
-      .select('*')
-      .eq('project_id', projectId)
+      .from('drone_overlays').select('*').eq('project_id', projectId)
       .order('created_at', { ascending: true });
     if (error) throw error;
     return data;
@@ -150,21 +143,14 @@ const DB = {
 
   async createDroneOverlay(payload) {
     const { data, error } = await getDb()
-      .from('drone_overlays')
-      .insert(payload)
-      .select()
-      .single();
+      .from('drone_overlays').insert(payload).select().single();
     if (error) throw error;
     return data;
   },
 
   async updateDroneOverlay(id, payload) {
     const { data, error } = await getDb()
-      .from('drone_overlays')
-      .update(payload)
-      .eq('id', id)
-      .select()
-      .single();
+      .from('drone_overlays').update(payload).eq('id', id).select().single();
     if (error) throw error;
     return data;
   },

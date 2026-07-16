@@ -4,11 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TerraPlan — Platform Pemetaan Lahan</title>
-
-  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-  <!-- App CSS -->
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -16,21 +13,21 @@
 <!-- ── Header ─────────────────────────────────────────────── -->
 <div id="header">
   <div class="logo">🗺 TerraPlan</div>
-  <div id="project-title">Pilih Proyek</div>
+  <div id="project-title">Platform Pemetaan Lahan</div>
   <span id="mode-badge" class="mode-badge public">PUBLIK</span>
 
-  <!-- Basemap switcher -->
   <div class="basemap-group">
     <button class="basemap-btn active" data-basemap="osm">Peta</button>
     <button class="basemap-btn" data-basemap="satellite">Satelit</button>
     <button class="basemap-btn" data-basemap="hybrid">Hybrid</button>
   </div>
 
-  <!-- Header actions -->
-  <button id="btn-edit-project" class="header-btn" style="display:none" title="Edit proyek">✏️ Edit</button>
-  <button id="btn-add-drone" class="header-btn" style="display:none" title="Tambah overlay drone">🛸 Drone</button>
-  <button id="btn-admin" class="header-btn" title="Masuk mode admin">🔑 Admin</button>
-  <button id="btn-logout" class="header-btn danger" style="display:none" title="Keluar admin">🚪 Keluar</button>
+  <button id="btn-edit-project" class="header-btn" style="display:none">✏️ Edit</button>
+  <button id="btn-add-drone"    class="header-btn" style="display:none">🛸 Drone</button>
+  <button id="btn-new-project"  class="header-btn primary" style="display:none">+ Proyek</button>
+  <button id="btn-share"        class="header-btn" style="display:none" title="Salin link publik">🔗 Share</button>
+  <button id="btn-admin-login"  class="header-btn">🔑 Admin</button>
+  <button id="btn-logout"       class="header-btn danger" style="display:none">🚪 Keluar</button>
   <button id="btn-help" title="Panduan penggunaan">?</button>
 </div>
 
@@ -40,21 +37,69 @@
   <!-- Sidebar -->
   <div id="sidebar">
 
-    <!-- Panel: Project list -->
-    <div id="panel-projects" class="panel active">
-      <div class="panel-header">
-        <h2>Proyek Lahan</h2>
-        <div class="panel-actions">
-          <button id="btn-new-project" class="btn-sm primary">+ Baru</button>
-          <button id="btn-global-admin" class="btn-sm">🔐 Admin</button>
+    <!-- Panel: Landing ──────────────────── -->
+    <div id="panel-landing" class="panel active">
+      <div class="landing-wrap">
+        <div class="landing-logo">🗺</div>
+        <div class="landing-title">TerraPlan</div>
+        <div class="landing-sub">Platform Pemetaan Lahan Digital</div>
+
+        <div class="landing-cards">
+          <div class="landing-card">
+            <div class="landing-card-icon">👁</div>
+            <div class="landing-card-title">Lihat Peta Publik</div>
+            <div class="landing-card-desc">Masukkan kode workspace untuk melihat peta lahan</div>
+            <div class="landing-input-row">
+              <input id="view-slug-input" type="text" placeholder="kode-workspace" autocomplete="off" />
+              <button id="btn-view-go" class="btn-primary">→</button>
+            </div>
+          </div>
+
+          <div class="landing-card">
+            <div class="landing-card-icon">🔑</div>
+            <div class="landing-card-title">Login Admin</div>
+            <div class="landing-card-desc">Kelola proyek dan gambar peta lahan Anda</div>
+            <div style="display:flex;gap:8px">
+              <button id="btn-goto-login"    class="btn-primary" style="flex:1">Login</button>
+              <button id="btn-goto-register" class="btn-secondary" style="flex:1">Daftar</button>
+            </div>
+          </div>
         </div>
-      </div>
-      <div id="project-list">
-        <p class="empty-msg">Memuat proyek...</p>
       </div>
     </div>
 
-    <!-- Panel: Layers + Features (when project is open) -->
+    <!-- Panel: Admin Login ───────────────── -->
+    <div id="panel-admin-login" class="panel">
+      <div class="login-wrap">
+        <button id="btn-login-back" class="btn-sm" style="margin-bottom:16px">← Kembali</button>
+        <div class="login-icon">🔑</div>
+        <div class="login-title">Login Admin</div>
+        <p class="login-subtitle">Workspace: <span id="login-slug-label" style="color:var(--accent)">—</span></p>
+        <div class="form-group">
+          <label>Username</label>
+          <input id="login-username" type="text" placeholder="username Anda" autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input id="login-password" type="password" placeholder="••••••" autocomplete="current-password" />
+        </div>
+        <button id="btn-do-login" class="btn-primary" style="width:100%;margin-bottom:10px">Masuk →</button>
+        <div style="text-align:center;font-size:12px;color:var(--text2)">
+          Belum punya akun?
+          <button id="btn-login-register" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px">Daftar di sini</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel: Projects ──────────────────── -->
+    <div id="panel-projects" class="panel">
+      <div class="panel-header">
+        <h2 id="panel-projects-title">Proyek</h2>
+      </div>
+      <div id="project-list"><p class="empty-msg">Memuat...</p></div>
+    </div>
+
+    <!-- Panel: Layers + Features ─────────── -->
     <div id="panel-layers" class="panel">
       <div class="panel-header">
         <div class="panel-actions">
@@ -62,79 +107,81 @@
           <button id="btn-add-layer" class="btn-sm primary" style="display:none">+ Layer</button>
         </div>
       </div>
-
       <div class="tabs">
         <button class="tab-btn active" data-tab="layers">Layer</button>
         <button class="tab-btn" data-tab="features">Area/Jalur</button>
       </div>
-
       <div id="tab-layers" class="tab-content active">
         <div id="layer-list"><p class="empty-msg">Belum ada layer.</p></div>
       </div>
-
       <div id="tab-features" class="tab-content">
         <div id="feature-list"><p class="empty-msg">Belum ada area.</p></div>
       </div>
     </div>
 
-  </div>
+  </div><!-- /sidebar -->
 
   <!-- Map container -->
   <div id="map-container">
     <div id="map"></div>
-
-    <!-- Drawing toolbar (admin only) -->
-    <div id="drawing-toolbar">
+    <div id="drawing-toolbar" style="display:none">
       <span class="draw-label">Gambar:</span>
       <button class="draw-btn" data-mode="polygon">⬡ Polygon</button>
       <button class="draw-btn" data-mode="polyline">〰 Jalur</button>
       <button class="draw-btn" data-mode="marker">📍 Titik</button>
-      <span style="margin-left:auto;font-size:11px;color:var(--text2)">Layer aktif akan menerima gambar baru</span>
+      <span style="margin-left:auto;font-size:11px;color:var(--text2)">Klik tombol → klik di peta untuk mulai</span>
     </div>
   </div>
 
-</div>
+</div><!-- /app -->
 
 <!-- ── Modals ─────────────────────────────────────────────── -->
 
-<!-- PIN Modal (per project) -->
-<div id="modal-pin" class="modal-overlay">
-  <div class="modal pin-modal" style="max-width:320px">
+<!-- Register -->
+<div id="modal-register" class="modal-overlay">
+  <div class="modal" style="max-width:420px">
     <button class="modal-close">✕</button>
-    <div class="pin-icon">🔐</div>
-    <div class="modal-title">Masuk Mode Admin</div>
+    <div class="modal-title">🆕 Buat Akun Admin</div>
     <div class="form-group">
-      <label>PIN Proyek</label>
-      <input id="pin-input" type="password" placeholder="Masukkan PIN..." autocomplete="off" />
+      <label>Username *</label>
+      <input id="reg-username" type="text" placeholder="contoh: budi_santoso" autocomplete="off" />
     </div>
-    <div class="modal-footer" style="justify-content:center">
-      <button id="btn-pin-submit" class="btn-primary" style="width:100%">Masuk</button>
+    <div class="form-group">
+      <label>Slug / Kode Workspace * <span style="font-size:10px;color:var(--text2)">(huruf kecil, angka, tanda -)</span></label>
+      <input id="reg-slug" type="text" placeholder="budi-santoso" autocomplete="off" />
+      <div class="form-hint">URL publik: <code id="slug-preview">?view=</code></div>
+    </div>
+    <div class="form-group">
+      <label>Nama Tampilan</label>
+      <input id="reg-display" type="text" placeholder="Budi Santoso" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Password *</label>
+        <input id="reg-password" type="password" placeholder="min. 6 karakter" />
+      </div>
+      <div class="form-group">
+        <label>Konfirmasi *</label>
+        <input id="reg-confirm" type="password" placeholder="ulangi password" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Platform Key *</label>
+      <input id="reg-key" type="text" placeholder="kode dari pengelola platform" />
+      <div class="form-hint" style="color:var(--text2)">Hubungi pengelola platform untuk mendapatkan kode ini.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary btn-modal-cancel">Batal</button>
+      <button id="btn-do-register" class="btn-primary">Buat Akun →</button>
     </div>
   </div>
 </div>
 
-<!-- Global Admin PIN Modal -->
-<div id="modal-global-pin" class="modal-overlay">
-  <div class="modal pin-modal" style="max-width:320px">
-    <button class="modal-close">✕</button>
-    <div class="pin-icon">🌐</div>
-    <div class="modal-title">Admin Global</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;text-align:center">Akses semua proyek termasuk draft & arsip</p>
-    <div class="form-group">
-      <label>PIN Admin Global</label>
-      <input id="global-pin-input" type="password" placeholder="terraadmin" autocomplete="off" />
-    </div>
-    <div class="modal-footer" style="justify-content:center">
-      <button id="btn-global-pin-submit" class="btn-primary" style="width:100%">Masuk</button>
-    </div>
-  </div>
-</div>
-
-<!-- Project Modal (create/edit) -->
+<!-- Project modal -->
 <div id="modal-project" class="modal-overlay">
   <div class="modal">
     <button class="modal-close">✕</button>
-    <div class="modal-title">📋 Proyek</div>
+    <div class="modal-title">📋 Proyek Lahan</div>
     <input type="hidden" id="pm-id" />
     <div class="form-group">
       <label>Nama Proyek *</label>
@@ -148,35 +195,20 @@
       <label>Deskripsi</label>
       <textarea id="pm-desc" placeholder="Deskripsi singkat proyek..."></textarea>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Status</label>
-        <select id="pm-status">
-          <option value="draft">Draft</option>
-          <option value="aktif">Aktif (Publik)</option>
-          <option value="arsip">Arsip</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>PIN Admin</label>
-        <input id="pm-pin" type="text" placeholder="1234" />
-      </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="pm-status">
+        <option value="draft">Draft (hanya admin)</option>
+        <option value="aktif">Aktif (terlihat publik)</option>
+        <option value="arsip">Arsip</option>
+      </select>
     </div>
     <div style="background:var(--bg3);border-radius:6px;padding:10px;margin-bottom:12px">
-      <div style="font-size:11px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.4px">Posisi Awal Peta</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Posisi Awal Peta</div>
       <div class="form-row">
-        <div class="form-group">
-          <label>Lat</label>
-          <input id="pm-lat" type="number" step="any" placeholder="-6.2" />
-        </div>
-        <div class="form-group">
-          <label>Lng</label>
-          <input id="pm-lng" type="number" step="any" placeholder="106.8" />
-        </div>
-        <div class="form-group" style="max-width:80px">
-          <label>Zoom</label>
-          <input id="pm-zoom" type="number" min="5" max="22" placeholder="15" />
-        </div>
+        <div class="form-group"><label>Lat</label><input id="pm-lat" type="number" step="any" /></div>
+        <div class="form-group"><label>Lng</label><input id="pm-lng" type="number" step="any" /></div>
+        <div class="form-group" style="max-width:80px"><label>Zoom</label><input id="pm-zoom" type="number" min="5" max="22" /></div>
       </div>
       <button id="btn-capture-center" class="btn-sm" style="width:100%">📍 Ambil posisi peta saat ini</button>
     </div>
@@ -187,17 +219,17 @@
   </div>
 </div>
 
-<!-- Layer Modal -->
+<!-- Layer modal -->
 <div id="modal-layer" class="modal-overlay">
   <div class="modal" style="max-width:360px">
     <button class="modal-close">✕</button>
     <div class="modal-title">➕ Tambah Layer</div>
     <div class="form-group">
       <label>Nama Layer</label>
-      <input id="layer-name-input" type="text" placeholder="Contoh: Zona Perumahan" />
+      <input id="layer-name-input" type="text" placeholder="Zona Perumahan" />
     </div>
     <div class="form-group">
-      <label>Warna Layer</label>
+      <label>Warna</label>
       <input id="layer-color-input" type="color" value="#3388ff" />
     </div>
     <div class="modal-footer">
@@ -207,21 +239,19 @@
   </div>
 </div>
 
-<!-- Feature Edit Modal -->
+<!-- Feature edit modal -->
 <div id="modal-feature" class="modal-overlay">
   <div class="modal">
     <button class="modal-close">✕</button>
     <div class="modal-title">✏️ Edit Fitur</div>
     <input type="hidden" id="fm-id" />
-
     <div id="fm-stats" class="form-stats"></div>
-
     <div class="form-group">
-      <label>Nama Area / Jalur</label>
-      <input id="fm-name" type="text" placeholder="Contoh: Kavling A1" />
+      <label>Nama</label>
+      <input id="fm-name" type="text" placeholder="Kavling A1" />
     </div>
     <div class="form-group">
-      <label>Label (tampil di peta)</label>
+      <label>Label di Peta</label>
       <input id="fm-label" type="text" placeholder="Teks label di peta..." />
     </div>
     <div class="form-group">
@@ -233,18 +263,9 @@
       <select id="fm-layer"></select>
     </div>
     <div class="form-row">
-      <div class="form-group">
-        <label>Warna Garis</label>
-        <input id="fm-color" type="color" value="#3388ff" />
-      </div>
-      <div class="form-group">
-        <label>Warna Isi</label>
-        <input id="fm-fill" type="color" value="#3388ff" />
-      </div>
-      <div class="form-group">
-        <label>Opasitas</label>
-        <input id="fm-opacity" type="range" min="0" max="1" step="0.05" value="0.5" />
-      </div>
+      <div class="form-group"><label>Warna Garis</label><input id="fm-color" type="color" /></div>
+      <div class="form-group"><label>Warna Isi</label><input id="fm-fill" type="color" /></div>
+      <div class="form-group"><label>Opasitas</label><input id="fm-opacity" type="range" min="0" max="1" step="0.05" /></div>
     </div>
     <div class="modal-footer">
       <button id="btn-feature-delete" class="btn-danger">Hapus</button>
@@ -254,7 +275,7 @@
   </div>
 </div>
 
-<!-- Drone Overlay Modal -->
+<!-- Drone overlay modal -->
 <div id="modal-drone" class="modal-overlay">
   <div class="modal">
     <button class="modal-close">✕</button>
@@ -268,26 +289,14 @@
       <input id="drone-url" type="url" placeholder="https://..." />
     </div>
     <div style="background:var(--bg3);border-radius:6px;padding:10px;margin-bottom:12px">
-      <div style="font-size:11px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.4px">Batas Koordinat (otomatis dari tampilan peta)</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Batas Koordinat</div>
       <div class="form-row">
-        <div class="form-group">
-          <label>North (Lat Max)</label>
-          <input id="drone-north" type="number" step="any" />
-        </div>
-        <div class="form-group">
-          <label>South (Lat Min)</label>
-          <input id="drone-south" type="number" step="any" />
-        </div>
+        <div class="form-group"><label>North</label><input id="drone-north" type="number" step="any" /></div>
+        <div class="form-group"><label>South</label><input id="drone-south" type="number" step="any" /></div>
       </div>
       <div class="form-row">
-        <div class="form-group">
-          <label>East (Lng Max)</label>
-          <input id="drone-east" type="number" step="any" />
-        </div>
-        <div class="form-group">
-          <label>West (Lng Min)</label>
-          <input id="drone-west" type="number" step="any" />
-        </div>
+        <div class="form-group"><label>East</label><input id="drone-east" type="number" step="any" /></div>
+        <div class="form-group"><label>West</label><input id="drone-west" type="number" step="any" /></div>
       </div>
     </div>
     <div class="form-group">
@@ -305,7 +314,7 @@
 <!-- Toast -->
 <div id="toast"></div>
 
-<!-- ── Scripts ────────────────────────────────────────────── -->
+<!-- ── Scripts ─────────────────────────────────────────────── -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
@@ -314,11 +323,37 @@
 <script src="js/config.js"></script>
 <script src="js/db.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/router.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/map.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/tutorial.js"></script>
 <script src="js/app.js"></script>
+
+<script>
+  // Auto-preview slug in register modal
+  document.addEventListener('DOMContentLoaded', () => {
+    const slugEl = document.getElementById('reg-slug');
+    const preview = document.getElementById('slug-preview');
+    if (slugEl && preview) {
+      slugEl.addEventListener('input', () => {
+        preview.textContent = `?view=${slugEl.value || '...'}`;
+      });
+    }
+    // Admin login from header button
+    document.getElementById('btn-admin-login').addEventListener('click', () => {
+      const route = Router.getMode();
+      if (route.mode === 'public') {
+        // Admin login for the currently viewed workspace
+        Router.setURL('admin', route.slug);
+        App._initAdminGate(route.slug);
+      } else {
+        UI.showPanel('admin-login');
+        document.getElementById('login-slug-label').textContent = '—';
+      }
+    });
+  });
+</script>
 
 </body>
 </html>

@@ -563,6 +563,82 @@ body {
 /* Leaflet Draw toolbar (hide default ugly style) */
 .leaflet-draw-toolbar { display: none !important; }
 
+/* ── Landing Page ────────────────────────────────────────── */
+.landing-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.landing-logo { font-size: 48px; margin-bottom: 6px; }
+.landing-title { font-size: 22px; font-weight: 800; color: var(--accent); letter-spacing: -0.5px; }
+.landing-sub { font-size: 12px; color: var(--text2); margin-bottom: 24px; text-align: center; }
+
+.landing-cards { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+
+.landing-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.landing-card-icon  { font-size: 24px; margin-bottom: 6px; }
+.landing-card-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.landing-card-desc  { font-size: 12px; color: var(--text2); margin-bottom: 12px; line-height: 1.5; }
+
+.landing-input-row {
+  display: flex;
+  gap: 6px;
+}
+.landing-input-row input {
+  flex: 1;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 13px;
+  outline: none;
+}
+.landing-input-row input:focus { border-color: var(--accent); }
+.landing-input-row .btn-primary { padding: 7px 14px; }
+
+/* ── Admin Login Panel ───────────────────────────────────── */
+.login-wrap {
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+}
+.login-icon     { font-size: 36px; text-align: center; margin-bottom: 8px; }
+.login-title    { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+.login-subtitle { font-size: 12px; color: var(--text2); text-align: center; margin-bottom: 20px; }
+
+/* ── Form hint ───────────────────────────────────────────── */
+.form-hint {
+  font-size: 11px;
+  color: var(--text2);
+  margin-top: 4px;
+}
+.form-hint code {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--accent);
+  font-family: monospace;
+}
+
+/* ── Header primary button ───────────────────────────────── */
+.header-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+.header-btn.primary:hover { background: var(--accent2); }
+
 /* ── Tutorial ────────────────────────────────────────────── */
 #tutorial-overlay {
   position: fixed;
