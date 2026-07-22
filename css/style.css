@@ -1030,7 +1030,7 @@ body {
   transition: background .15s, transform .2s;
 }
 #fab-sidebar:hover { background: var(--accent2); }
-#fab-sidebar.open  { transform: rotate(45deg); background: var(--bg3); border: 1px solid var(--border); }
+#fab-sidebar.open  { transform: rotate(45deg); background: var(--error); }
 
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 640px) {
@@ -1044,6 +1044,8 @@ body {
     overflow: hidden;
   }
   #header .logo { font-size: 14px; }
+  #header .logo .logo-text { display: none; }
+  .header-btn .btn-text { display: none; }
   #project-title { font-size: 13px; }
   #mode-badge { display: none; }
 
@@ -1055,7 +1057,8 @@ body {
   /* Hide header-only admin buttons on mobile — duplicated inside sidebar panels */
   #btn-edit-project,
   #btn-add-drone,
-  #btn-new-project { display: none !important; }
+  #btn-new-project,
+  #btn-share { display: none !important; }
 
   /* Show mobile-only action bars inside panels */
   .mob-panel-actions { display: flex !important; }
@@ -1096,8 +1099,8 @@ body {
   /* Show FAB on mobile */
   #fab-sidebar { display: flex; }
 
-  /* When sidebar open, FAB moves up so it's not behind sheet */
-  #fab-sidebar.open { bottom: calc(62vh + 12px); }
+  /* When sidebar open, FAB stays at bottom-right of the sheet */
+  #fab-sidebar.open { bottom: 20px; }
 
   /* ── Drawing toolbar: scrollable row ─────────────── */
   #drawing-toolbar {

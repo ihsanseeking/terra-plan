@@ -42,13 +42,11 @@ const App = {
   },
 
   _openMobileSidebar() {
-    if (window.innerWidth <= 640) {
-      const sb  = document.getElementById('sidebar');
-      const fab = document.getElementById('fab-sidebar');
-      sb?.classList.add('mobile-open');
-      fab?.classList.add('open');
-      if (fab) fab.querySelector('#fab-icon').textContent = '✕';
-    }
+    const sb  = document.getElementById('sidebar');
+    const fab = document.getElementById('fab-sidebar');
+    sb?.classList.add('mobile-open');
+    fab?.classList.add('open');
+    if (fab) fab.querySelector('#fab-icon').textContent = '✕';
   },
 
   // ── Public view ───────────────────────────────────────────
@@ -817,11 +815,9 @@ const App = {
     // Auto-close sidebar when project opens on mobile (focus map)
     const _origOpenProject = this.openProject.bind(this);
     this._closeMobileSidebar = () => {
-      if (window.innerWidth <= 640) {
-        sidebar.classList.remove('mobile-open');
-        fab?.classList.remove('open');
-        if (fab) fab.querySelector('#fab-icon').textContent = '☰';
-      }
+      sidebar.classList.remove('mobile-open');
+      fab?.classList.remove('open');
+      if (fab) fab.querySelector('#fab-icon').textContent = '☰';
     };
   },
 
