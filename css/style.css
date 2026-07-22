@@ -996,6 +996,18 @@ body {
   flex-wrap: wrap;
 }
 
+/* ── Mobile draw toolbar (inside sidebar) ─────────────────── */
+#mob-draw-toolbar {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.mob-draw-label { font-size: 11px; color: var(--text2); }
+.mob-draw-btns  { display: flex; gap: 6px; flex-wrap: wrap; }
+
 /* ── Sidebar drag handle (mobile only, hidden on desktop) ─── */
 #sidebar-handle {
   display: none;
@@ -1102,17 +1114,10 @@ body {
   /* When sidebar open, FAB stays at bottom-right of the sheet */
   #fab-sidebar.open { bottom: 20px; }
 
-  /* ── Drawing toolbar: scrollable row ─────────────── */
-  #drawing-toolbar {
-    overflow-x: auto;
-    padding: 0 8px;
-    gap: 6px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  #drawing-toolbar::-webkit-scrollbar { display: none; }
+  /* ── Drawing toolbar: hide from map area on mobile (moved to sidebar) */
+  #drawing-toolbar { display: none !important; }
+
   .draw-btn { flex-shrink: 0; font-size: 11px; padding: 5px 10px; }
-  .draw-label { display: none; }
 
   /* ── Edit bar: full-width at bottom ──────────────── */
   #edit-bar {

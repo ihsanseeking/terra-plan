@@ -452,9 +452,10 @@ const App = {
       return;
     }
     this.state.drawMode = mode;
-    document.querySelector(`.draw-btn[data-mode="${mode}"]`)?.classList.add('active');
+    document.querySelectorAll(`.draw-btn[data-mode="${mode}"]`).forEach(b => b.classList.add('active'));
     const color = this._getActiveLayerColor();
     MapManager.enableDrawing(mode, { color, fillColor: color, opacity: 0.4 });
+    this._closeMobileSidebar?.();
   },
 
   _getActiveLayerColor() {

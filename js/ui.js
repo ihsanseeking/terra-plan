@@ -41,10 +41,12 @@ const UI = {
     if (fitBtn) fitBtn.style.display = project ? '' : 'none';
 
     // Mobile-only action bars visibility
-    const mobProjects = document.getElementById('mob-projects-actions');
-    const mobLayers   = document.getElementById('mob-layers-actions');
-    if (mobProjects) mobProjects.style.display = isAdmin ? '' : 'none';
-    if (mobLayers)   mobLayers.style.display   = (isAdmin && project) ? '' : 'none';
+    const mobProjects  = document.getElementById('mob-projects-actions');
+    const mobLayers    = document.getElementById('mob-layers-actions');
+    const mobDrawTools = document.getElementById('mob-draw-toolbar');
+    if (mobProjects)  mobProjects.style.display  = isAdmin ? '' : 'none';
+    if (mobLayers)    mobLayers.style.display    = (isAdmin && project) ? '' : 'none';
+    if (mobDrawTools) mobDrawTools.style.display = (isAdmin && project) ? 'flex' : 'none';
   },
 
   // ── Project list ──────────────────────────────────────────
